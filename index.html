@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="main.js"></script>
+    <link href='https://fonts.googleapis.com/css?family=Sarala' rel='stylesheet' type='text/css'>
+    <style type="text/css">
+    * {
+        /* PREVENT TEXT HIGHLIGHTING SITE-WIDE */
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+
+        cursor: default;
+
+        font-family: 'Sarala', sans-serif;
+        color: #EEE;
+    }
+
+    html {
+        background-color: #310;
+        text-align: center;
+    }
+
+    body {
+        margin: 0;
+        padding: 0;
+    }
+
+    h2 {
+        font-size: 28px;
+    }
+    .button {
+        font-size: 24px;
+        width: 120px;
+        height: 50px;
+        line-height: 50px;
+        background-color: #532;
+        cursor: pointer;
+        display: block;
+        margin: 10px auto;
+        box-shadow: inset -2px -2px 1px black;
+        /*box-shadow: 5px 5px black;*/
+    }
+    .button:hover {
+        background-color: #421;
+        color: #CCC;
+        left: 10px;
+        text-indent: 2px;
+        /*vertical-align: text-top;*/
+        padding-top: 2px;
+        height: 48px;
+        box-shadow: inset 2px 2px 1px black;
+    }
+    #gameCanvas {
+
+    }
+    footer {
+        background-color: #250500;
+        color: #C2C1D9;
+        bottom: 0;
+        width: 100%;
+        font-size: 14px;
+        margin-top: 120px;
+    }
+    </style>
+</head>
+<body>
+    <h2>TM495</h2>
+
+    <div id="mainMenuState">
+        <div id="playButton" class="button" onclick="if (clickType(event)===ClickType.LMB) enterState('game');">Play</div>
+        <div id="aboutButton" class="button" onclick="if (clickType(event)===ClickType.LMB) enterState('about');">About</div>
+    </div>
+
+    <div id="aboutState" style="display: none">
+        <div id="backButton" class="button" onclick="Main.sm.enterPreviousState();">Back</div>
+        <p>
+            about 'n stuff
+        </p>
+        <div>
+            <a href="https://twitter.com/home?status=You%20should%20try%20AJ%20Weeks'%20newest%20game,%20TM495%20over%20at%20ajweeks.github.io/tm495">
+                <img src="res/twitter.png" style="cursor: pointer">
+            </a>
+            <a href="https://www.facebook.com/sharer/sharer.php?u=ajweeks.github.io">
+                <img src="res/facebook.png" style="cursor: pointer">
+            </a>
+        </div>
+    </div>
+
+    <div id="gameState" style="display: none">
+        <div id="backButton" class="button" onclick="Main.sm.enterPreviousState();">Back</div>
+        <div id="gameWindow">
+            <canvas id="gameCanvas" width="720" height="480"></canvas>
+        </div>
+    </div>
+
+
+    <footer>
+        AJ Weeks 2015
+    </footer>
+</body>
+</html>
