@@ -22,7 +22,7 @@ var Main = (function () {
         var now = Date.now();
         Main.elapsed += (now - Main.lastDate);
         Main.lastDate = now;
-        Main.context.fillStyle = "#123";
+        Main.context.fillStyle = "#284B32";
         Main.context.fillRect(0, 0, Main.canvas.width, Main.canvas.height);
         Main.sm.update();
         Main.sm.render();
@@ -130,8 +130,9 @@ var GameState = (function (_super) {
         _super.call(this, STATE_TYPE.GAME, sm);
         this.x = 0;
         this.y = 0;
-        this.ldown = false;
         get('gameState').style.display = "initial";
+        this.player = new Player();
+        this.level = new Level();
     }
     GameState.prototype.hide = function () {
         get('gameState').style.display = "none";
@@ -142,20 +143,147 @@ var GameState = (function (_super) {
     GameState.prototype.destroy = function () {
         get('gameState').style.display = "none";
     };
-    GameState.prototype.update = function () { };
+    GameState.prototype.update = function () {
+        this.player.update();
+    };
     GameState.prototype.render = function () {
-        Main.context.drawImage(Resource.player, Mouse.x + Main.elapsed % (Main.canvas.width) - Mouse.x, Mouse.y);
+        this.level.render();
+        this.player.render();
     };
     return GameState;
 })(BasicState);
+var Player = (function () {
+    function Player() {
+        this.maxXv = 18;
+        this.maxYv = 18;
+        this.ax = 0.5;
+        this.ay = 0.5;
+        this.friction = 0.80;
+        this.width = 32;
+        this.height = 64;
+        this.x = Main.canvas.width / 2;
+        this.y = Main.canvas.height - this.height - 36;
+        this.xv = 0;
+        this.yv = 0;
+    }
+    Player.prototype.update = function () {
+        if (Keyboard.keysDown.length > 0) {
+            if (Keyboard.contains(Keyboard.KEYS.W)) {
+                this.yv -= this.ay;
+            }
+            if (Keyboard.contains(Keyboard.KEYS.A)) {
+                this.xv -= this.ax;
+            }
+            if (Keyboard.contains(Keyboard.KEYS.S)) {
+                this.yv += this.ay;
+            }
+            if (Keyboard.contains(Keyboard.KEYS.D)) {
+                this.xv += this.ax;
+            }
+        }
+        this.xv *= this.friction;
+        this.yv *= this.friction;
+        if (this.xv > this.maxXv) {
+            this.xv = this.maxXv;
+        }
+        else if (this.xv < -this.maxXv) {
+            this.xv = -this.maxXv;
+        }
+        if (this.yv > this.maxYv) {
+            this.yv = this.maxYv;
+        }
+        else if (this.xv < -this.maxYv) {
+            this.yv = -this.maxYv;
+        }
+        this.x += this.xv;
+        this.y += this.yv;
+        if (this.x < 0) {
+            this.x = 0;
+        }
+        else if (this.x + this.width > Main.canvas.width) {
+            this.x = Main.canvas.width - this.width;
+        }
+        if (this.y < 0) {
+            this.y = 0;
+        }
+        else if (this.y + this.height > Main.canvas.height) {
+            this.y = Main.canvas.height - this.height;
+        }
+    };
+    Player.prototype.render = function () {
+        Resource.player.render(this.x, this.y, this.yv < -Math.abs(this.xv) ? 2 : this.xv > 0 ? 0 : 1, 32 - (Main.canvas.height - this.y) / (Main.canvas.height) * 14, 64 - (Main.canvas.height - this.y) / (Main.canvas.height) * 28);
+    };
+    return Player;
+})();
+var Level = (function () {
+    function Level() {
+        this.trunks = new Array(50);
+        for (var i = 0; i < this.trunks.length; ++i) {
+            var pos;
+            do {
+                pos = new Vec2(Math.random() * (Main.canvas.width - 32), Math.random() * (Main.canvas.height - 142));
+            } while (Level.overlaps(pos, this.trunks));
+            this.trunks[i] = pos;
+        }
+    }
+    Level.overlaps = function (pos, trunks) {
+        for (var i = 0; i < trunks.length; ++i) {
+            if (!trunks[i])
+                continue;
+            if (pos.x + 32 >= trunks[i].x &&
+                pos.x <= trunks[i].x + 32 &&
+                pos.y + 32 >= trunks[i].y &&
+                pos.y <= trunks[i].y + 32) {
+                return true;
+            }
+        }
+        return false;
+    };
+    Level.prototype.render = function () {
+        Main.context.fillStyle = "#CCB595";
+        Main.context.fillRect(0, Main.canvas.height - 110, Main.canvas.width, Main.canvas.height);
+        for (var i in this.trunks) {
+            Main.context.drawImage(Resource.deciduous_sapling, 0, 0, 32, 32, this.trunks[i].x, this.trunks[i].y, 32 - ((Main.canvas.height - this.trunks[i].y) / Main.canvas.height * 15), 32 - ((Main.canvas.height - this.trunks[i].y) / Main.canvas.height * 15));
+        }
+    };
+    return Level;
+})();
+var Vec2 = (function () {
+    function Vec2(x, y) {
+        if (x === void 0) { x = 0; }
+        if (y === void 0) { y = 0; }
+        this.x = x;
+        this.y = y;
+    }
+    return Vec2;
+})();
 var Resource = (function () {
     function Resource() {
     }
     Resource.loadAll = function () {
-        Resource.player = new Image();
-        Resource.player.src = "res/player.png";
+        Resource.player = new SpriteSheet("res/player.png", 32, 64);
+        Resource.trunk = new Image();
+        Resource.trunk.src = "res/trunk.png";
+        Resource.deciduous_sapling = new Image();
+        Resource.deciduous_sapling.src = "res/deciduous_sapling.png";
+        Resource.coninferous_sapling = new Image();
+        Resource.coninferous_sapling.src = "res/coniferous_sapling.png";
     };
     return Resource;
+})();
+var SpriteSheet = (function () {
+    function SpriteSheet(src, frameWidth, frameHeight) {
+        this.image = new Image();
+        this.image.src = src;
+        this.frameWidth = frameWidth;
+        this.frameHeight = frameHeight;
+    }
+    SpriteSheet.prototype.render = function (x, y, frameNumber, width, height) {
+        var sx = (frameNumber % this.image.width) * this.frameWidth;
+        var sy = Math.floor(frameNumber / this.image.width) * this.frameHeight;
+        Main.context.drawImage(this.image, sx, sy, this.frameWidth, this.frameHeight, x, y, width, height);
+    };
+    return SpriteSheet;
 })();
 var Camera = (function () {
     function Camera() {
@@ -196,6 +324,43 @@ var Mouse = (function () {
     Mouse.rdown = false;
     return Mouse;
 })();
+var Keyboard = (function () {
+    function Keyboard() {
+    }
+    Keyboard.onKeyDown = function (event) {
+        if (!Keyboard.contains(event.keyCode)) {
+            Keyboard.keysDown.push(event.keyCode);
+        }
+    };
+    Keyboard.contains = function (keyCode) {
+        for (var i in Keyboard.keysDown) {
+            if (keyCode === Keyboard.keysDown[i]) {
+                return true;
+            }
+        }
+        return false;
+    };
+    Keyboard.onKeyUp = function (event) {
+        var pos = -1;
+        for (var i in Keyboard.keysDown) {
+            if (Keyboard.keysDown[i] === event.keyCode) {
+                pos = i;
+            }
+        }
+        if (pos != -1) {
+            Keyboard.keysDown.splice(pos, 1);
+        }
+    };
+    Keyboard.KEYS = {
+        BACKSPACE: 8, TAB: 9, RETURN: 13, ESC: 27, SPACE: 32, PAGEUP: 33, PAGEDOWN: 34, END: 35, HOME: 36,
+        LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, INSERT: 45, DELETE: 46, ZERO: 48, ONE: 49, TWO: 50, THREE: 51,
+        FOUR: 52, FIVE: 53, SIX: 54, SEVEN: 55, EIGHT: 56, NINE: 57, A: 65, B: 66, C: 67, D: 68, E: 69, F: 70,
+        G: 71, H: 72, I: 73, J: 74, K: 75, L: 76, M: 77, N: 78, O: 79, P: 80, Q: 81, R: 82, S: 83, T: 84, U: 85,
+        V: 86, W: 87, X: 88, Y: 89, Z: 90, TILDE: 192, SHIFT: 999
+    };
+    Keyboard.keysDown = new Array(0);
+    return Keyboard;
+})();
 function clickType(event) {
     if (event.which === 3 || event.button === 2)
         return ClickType.RMB;
@@ -207,6 +372,8 @@ function clickType(event) {
 function enterState(state) {
     Main.sm.enterState(Main.sm.getState(state));
 }
+window.onkeydown = Keyboard.onKeyDown;
+window.onkeyup = Keyboard.onKeyUp;
 window.onload = function () {
     get('gameCanvas').oncontextmenu = function () { return false; };
     get('gameCanvas').onmousedown = function (event) { Mouse.click(event, true); };
