@@ -26,19 +26,34 @@ class Main {
         Main.loop();
     }
 
+    static frames = 0;
+    static fps = 0;
+    static f = 0;
+
     static loop(): void {
         requestAnimationFrame(Main.loop);
 
         var now = Date.now();
-        Main.elapsed += (now - Main.lastDate);
+        var deltaTime = (now - Main.lastDate);
+        Main.elapsed += deltaTime;
         Main.lastDate = now;
+
+        Main.f += deltaTime;
+        ++Main.frames;
+        if (Main.f > 1000) {
+            Main.f -= 1000;
+            Main.fps = Main.frames;
+            Main.frames = 0;
+        }
 
         Main.context.fillStyle = "#284B32";
         Main.context.fillRect(0, 0, Main.canvas.width, Main.canvas.height);
 
-
-        Main.sm.update();
+        Main.sm.update(deltaTime);
         Main.sm.render();
+
+        Main.context.fillStyle = "#000";
+        Main.context.fillText("FPS: " + Main.fps, 10, 18);
     }
 }
 
@@ -56,8 +71,8 @@ class StateManager {
         this.states[0] = new MainMenuState(this);
     }
 
-    update(): void {
-        this.currentState().update();
+    update(deltaTime: number): void {
+        this.currentState().update(deltaTime);
     }
 
     render(): void {
@@ -113,17 +128,17 @@ class BasicState {
         this.sm = sm;
     }
 
-    update(): void {}
-    render(): void {}
+    update(deltaTime: number): void { }
+    render(): void { }
 
     /** Is called when a new state is added "on top" of this one */
-    hide(): void {}
+    hide(): void { }
 
     /** Is called after the state directly on top of this one in the state stack is destroyed */
-    restore(): void {}
+    restore(): void { }
 
     /** Is called when the state is being popped off the state stack */
-    destroy(): void {}
+    destroy(): void { }
 }
 
 class MainMenuState extends BasicState {
@@ -166,19 +181,21 @@ class AboutState extends BasicState {
     }
 }
 
-class GameState extends BasicState{
+class GameState extends BasicState {
 
     x: number = 0;
     y: number = 0;
     player: Player;
     level: Level;
+    camera: Camera;
 
     constructor(sm: StateManager) {
         super(STATE_TYPE.GAME, sm);
         get('gameState').style.display = "initial";
 
-        this.player = new Player();
-        this.level = new Level();
+        this.level = new Level(Main.canvas.width, Main.canvas.height * 2);
+        this.player = new Player(this.level);
+        this.camera = new Camera(this.player);
     }
 
     hide(): void {
@@ -191,8 +208,9 @@ class GameState extends BasicState{
         get('gameState').style.display = "none";
     }
 
-    update(): void {
-        this.player.update();
+    update(deltaTime: number): void {
+        this.player.update(deltaTime);
+        this.camera.update();
     }
 
     render(): void {
@@ -202,114 +220,132 @@ class GameState extends BasicState{
 }
 
 class Player {
+    static MAX_V_WALK: number = 6;
+    static MAX_V_RUN: number = 16;
 
     width: number;
     height: number;
 
-    x: number;
-    y: number;
-    xv: number;
-    yv: number;
-    maxXv: number = 18;
-    maxYv: number = 18;
+    pos: Vec2;
+    vel: Vec2;
+    maxVel;
 
-    ax: number = 0.5;
-    ay: number = 0.5;
+    a: number = 4;
 
-    friction: number = 0.80;
+    friction: number = 0.66;
 
-    constructor() {
-        this.width = 32;
-        this.height = 64;
-        this.x = Main.canvas.width / 2;
-        this.y = Main.canvas.height - this.height - 36;
-        this.xv = 0;
-        this.yv = 0;
+    level: Level;
+
+    constructor(level: Level) {
+        this.level = level;
+        this.width = 64;
+        this.height = 128;
+        this.pos = new Vec2();
+        this.pos.x = Main.canvas.width / 2;
+        this.pos.y = 100;
+        this.vel = new Vec2(0, 0);
+        this.maxVel = Player.MAX_V_WALK;
     }
 
-    update(): void {
+    update(deltaTime: number): void {
         if (Keyboard.keysDown.length > 0) {
             if (Keyboard.contains(Keyboard.KEYS.W)) {
-                this.yv -= this.ay;
+                this.vel.y += this.a;
             }
             if (Keyboard.contains(Keyboard.KEYS.A)) {
-                this.xv -= this.ax;
+                this.vel.x -= this.a;
             }
             if (Keyboard.contains(Keyboard.KEYS.S)) {
-                this.yv += this.ay;
+                this.vel.y -= this.a;
             }
             if (Keyboard.contains(Keyboard.KEYS.D)) {
-                this.xv += this.ax;
+                this.vel.x += this.a;
+            }
+
+            if (Keyboard.contains(Keyboard.KEYS.SHIFT)) {
+                this.maxVel = Player.MAX_V_RUN;
+            } else {
+                this.maxVel = Player.MAX_V_WALK;
             }
         }
 
-        this.xv *= this.friction;
-        this.yv *= this.friction;
+        this.vel.x *= this.friction;
+        this.vel.y *= this.friction;
 
-        if (this.xv > this.maxXv) {
-            this.xv = this.maxXv;
-        } else if (this.xv < -this.maxXv) {
-            this.xv = -this.maxXv;
+        if (this.vel.x > this.maxVel) {
+            this.vel.x = this.maxVel;
+        } else if (this.vel.x < -this.maxVel) {
+            this.vel.x = -this.maxVel;
         }
-        if (this.yv > this.maxYv) {
-            this.yv = this.maxYv;
-        } else if (this.xv < -this.maxYv) {
-            this.yv = -this.maxYv;
-        }
+        // NOTE(AJ): This makes the player turn to the left when standing still after walking
+        //           So just leave it as a small nubmer
+        //else if (this.vel.x > -0.01 && this.vel.x < 0.01) {
+        //    this.vel.x = 0;
+        //}
 
-        this.x += this.xv;
-        this.y += this.yv;
-
-        if (this.x < 0) {
-            this.x = 0;
-        } else if (this.x + this.width > Main.canvas.width) {
-            this.x = Main.canvas.width - this.width;
+        if (this.vel.y > this.maxVel) {
+            this.vel.y = this.maxVel;
+        } else if (this.vel.y < -this.maxVel) {
+            this.vel.y = -this.maxVel;
         }
-        if (this.y < 0) {
-            this.y = 0;
-        } else if (this.y + this.height> Main.canvas.height) {
-            this.y = Main.canvas.height - this.height;
+        // else if (this.vel.y > -0.01 && this.vel.y < 0.01) {
+        //     this.vel.y = 0;
+        // }
+
+        this.pos.x += this.vel.x;
+        this.pos.y += this.vel.y;
+
+        if (this.pos.x < 0) {
+            this.pos.x = 0;
+        } else if (this.pos.x + this.width > this.level.pixelWidth) {
+            this.pos.x = this.level.pixelWidth - this.width;
+        }
+        if (this.pos.y < this.height) { // NOTE(AJ): Y=0 is bottom of screen
+            this.pos.y = this.height;
+        } else if (this.pos.y > this.level.pixelHeight) {
+            this.pos.y = this.level.pixelHeight;
         }
     }
 
     render(): void {
-        // Resource.player.render(this.player.x, this.player.y, Main.elapsed % 1000 > 500 ? 1 : 0);
         Resource.player.render(
-            this.x,
-            this.y,
-            this.yv < -Math.abs(this.xv) ? 2 : this.xv > 0 ? 0 : 1,
-            32 - (Main.canvas.height - this.y) / (Main.canvas.height) * 14,
-            64 - (Main.canvas.height - this.y) / (Main.canvas.height) * 28);
-            // if the player is going up faster than they are going to the side, show frame 3, else show side frame
-
+            this.pos.x,
+            this.pos.y,
+            this.vel.y < -Math.abs(this.vel.x) ? 2 : this.vel.x > 0 ? 0 : 1,
+            this.width,
+            this.height);
     }
-
 }
 
 class Level {
 
     trunks: Vec2[];
+    pixelWidth: number;
+    pixelHeight: number;
 
-    constructor() {
+    constructor(width: number, height: number) {
+        this.pixelWidth = width;
+        this.pixelHeight = height;
+
         this.trunks = new Array<Vec2>(50);
         for (var i = 0; i < this.trunks.length; ++i) {
             var pos: Vec2;
             do {
-                pos = new Vec2(Math.random() * (Main.canvas.width - 32), Math.random() * (Main.canvas.height - 142));
-            } while (Level.overlaps(pos, this.trunks));
+                pos = new Vec2(Math.random() * (Main.canvas.width - 32), Math.random() * (this.pixelHeight - 140) + 140);
+            } while (Level.overlaps(pos, this.trunks, new Vec2(32, 32)));
 
             this.trunks[i] = pos;
         }
     }
 
-    static overlaps(pos: Vec2, trunks: Vec2[]): boolean {
+    static overlaps(pos: Vec2, trunks: Vec2[], size: Vec2): boolean {
         for (var i = 0; i < trunks.length; ++i) {
             if (!trunks[i]) continue; // skip the undefined trunks
 
-            if (pos.x + 32 >= trunks[i].x &&
-                pos.x <= trunks[i].x + 32 &&
-                pos.y + 32 >= trunks[i].y &&
-                pos.y <= trunks[i].y + 32) {
+            if (pos.x + size.x >= trunks[i].x &&
+                pos.x <= trunks[i].x + size.x &&
+                pos.y + size.y >= trunks[i].y &&
+                pos.y <= trunks[i].y + size.y) {
                 return true;
             }
         }
@@ -318,16 +354,11 @@ class Level {
 
     render(): void {
         Main.context.fillStyle = "#CCB595"
-        Main.context.fillRect(0, Main.canvas.height - 110, Main.canvas.width, Main.canvas.height);
+        Camera.fillRect(0, 110, Main.canvas.width, 100);
 
         // LATER(AJ): add some randomness to how trunks are drawn
         for (var i in this.trunks) {
-            Main.context.drawImage(
-                Resource.deciduous_sapling,
-                0, 0, 32, 32,
-                this.trunks[i].x, this.trunks[i].y,
-                32 - ((Main.canvas.height - this.trunks[i].y) / Main.canvas.height * 15),
-                32 - ((Main.canvas.height - this.trunks[i].y) / Main.canvas.height * 15));
+            Camera.drawImage(Resource.trunk, this.trunks[i].x, this.trunks[i].y, 32, 32);
         }
     }
 
@@ -341,6 +372,8 @@ class Vec2 {
         this.x = x;
         this.y = y;
     }
+
+    // TODO(AJ): implement dot, cross, mult, etc. (if necessary)
 }
 
 // Note(AJ): A class to store any resources the game uses
@@ -354,7 +387,7 @@ class Resource {
     static coninferous_sapling: HTMLImageElement;
 
     static loadAll() {
-        Resource.player = new SpriteSheet("res/player.png", 32, 64);
+        Resource.player = new SpriteSheet("res/player.png", 64, 128);
 
         Resource.trunk = new Image();
         Resource.trunk.src = "res/trunk.png";
@@ -386,31 +419,48 @@ class SpriteSheet {
 
         this.frameWidth = frameWidth;
         this.frameHeight = frameHeight;
-
-        // NOTE(AJ): If we don't use an onload function, the width and height are set to 0
-        // this.image.onload = this.setSize.bind(this);
-
-        // this.totalFrameCount = ((this.width / this.frameWidth) * (this.height / this.frameHeight));
     }
 
-    // setSize(event): any {
-    //     this.width = (this.width / this.frameWidth);
-    //     this.height = (this.height / this.frameHeight);
-    // }
-
+    /** @param x, y: the position of the object in *level* space (knows nothing about the camera) */
     render(x: number, y: number, frameNumber: number, width: number, height: number): void {
         var sx = (frameNumber % this.image.width) * this.frameWidth;
         var sy = Math.floor(frameNumber / this.image.width) * this.frameHeight;
-        // Main.context.drawImage(this.image, sx, sy, this.frameWidth, this.frameHeight, x, y, this.frameWidth, this.frameHeight);
-        Main.context.drawImage(this.image, sx, sy, this.frameWidth, this.frameHeight, x, y, width, height);
+        Main.context.drawImage(this.image, sx, sy, this.frameWidth, this.frameHeight, x, Main.canvas.height - y + Camera.yo, width, height);
     }
 
 }
 
-
 // LATER(AJ): Figure out how to render to a camera, so we can use cool effects and stuff
+// For now, just use this as a place to hold an offset to render things with
 class Camera {
-    //render(): void {}
+
+    //static xo = 0;
+    static yo = 0;
+
+    player: Player;
+
+    constructor(player: Player) {
+        this.player = player;
+    }
+
+    update() {
+        Camera.yo = this.player.pos.y - this.player.height / 2 - Main.canvas.height / 2;
+        if (Camera.yo < 0) {
+            Camera.yo = 0;
+        } else if (Camera.yo > this.player.level.pixelHeight - Main.canvas.height) {
+            Camera.yo = this.player.level.pixelHeight - Main.canvas.height;
+        }
+    }
+
+    /* Renders a rectangle at (x, y) WORLD SPACE correctly using camera's yo */
+    static fillRect(x: number, y: number, width: number, height: number): void {
+        Main.context.fillRect(x, Main.canvas.height - y + Camera.yo, width, height);
+    }
+
+    /* Renders an image at (x, y) WORLD SPACE correctly using camera's yo */
+    static drawImage(image: HTMLImageElement, x: number, y: number, width: number, height: number): void {
+        Main.context.drawImage(image, x, Main.canvas.height - y + Camera.yo, width, height);
+    }
 }
 
 enum ClickType {
@@ -433,7 +483,7 @@ class Mouse {
 
     static click(event: MouseEvent, down: boolean): void {
         var type = clickType(event);
-        switch(type) {
+        switch (type) {
             case ClickType.LMB:
                 Mouse.ldown = down;
                 break;
@@ -450,17 +500,19 @@ class Mouse {
 class Keyboard {
 
     static KEYS = {
-        BACKSPACE: 8, TAB: 9, RETURN: 13, ESC: 27, SPACE: 32, PAGEUP: 33, PAGEDOWN: 34, END: 35, HOME: 36,
+        BACKSPACE: 8, TAB: 9, RETURN: 13, SHIFT: 16, ESC: 27, SPACE: 32, PAGEUP: 33, PAGEDOWN: 34, END: 35, HOME: 36,
         LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, INSERT: 45, DELETE: 46, ZERO: 48, ONE: 49, TWO: 50, THREE: 51,
         FOUR: 52, FIVE: 53, SIX: 54, SEVEN: 55, EIGHT: 56, NINE: 57, A: 65, B: 66, C: 67, D: 68, E: 69, F: 70,
         G: 71, H: 72, I: 73, J: 74, K: 75, L: 76, M: 77, N: 78, O: 79, P: 80, Q: 81, R: 82, S: 83, T: 84, U: 85,
-        V: 86, W: 87, X: 88, Y: 89, Z: 90, TILDE: 192, SHIFT: 999
+        V: 86, W: 87, X: 88, Y: 89, Z: 90, TILDE: 192
     };
 
     // TODO(AJ): Browserproof this
     static keysDown: Array<number> = new Array<number>(0);
 
     static onKeyDown(event: KeyboardEvent) {
+        if (event.altKey) return false; // let's not deal with this for now
+
         if (!Keyboard.contains(event.keyCode)) {
             Keyboard.keysDown.push(event.keyCode);
         }
@@ -476,19 +528,14 @@ class Keyboard {
     }
 
     static onKeyUp(event: KeyboardEvent) {
-        var pos = -1;
+        if (event.altKey) return; // let's not deal with this for now
 
         for (var i in Keyboard.keysDown) {
             if (Keyboard.keysDown[i] === event.keyCode) {
-                pos = i;
+                Keyboard.keysDown.splice(i, 1);
             }
         }
-
-        if (pos != -1) {
-            Keyboard.keysDown.splice(pos, 1);
-        }
     }
-
 }
 
 function clickType(event: MouseEvent): ClickType {
@@ -512,8 +559,6 @@ window.onload = function() {
     get('gameCanvas').onmousedown = function(event: MouseEvent) { Mouse.click(event, true) };
     get('gameCanvas').onmouseup = function(event: MouseEvent) { Mouse.click(event, false) };
     get('gameCanvas').onmousemove = Mouse.move;
-
-
 
     new Main().init();
 }

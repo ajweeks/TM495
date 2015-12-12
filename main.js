@@ -20,15 +20,28 @@ var Main = (function () {
     Main.loop = function () {
         requestAnimationFrame(Main.loop);
         var now = Date.now();
-        Main.elapsed += (now - Main.lastDate);
+        var deltaTime = (now - Main.lastDate);
+        Main.elapsed += deltaTime;
         Main.lastDate = now;
+        Main.f += deltaTime;
+        ++Main.frames;
+        if (Main.f > 1000) {
+            Main.f -= 1000;
+            Main.fps = Main.frames;
+            Main.frames = 0;
+        }
         Main.context.fillStyle = "#284B32";
         Main.context.fillRect(0, 0, Main.canvas.width, Main.canvas.height);
-        Main.sm.update();
+        Main.sm.update(deltaTime);
         Main.sm.render();
+        Main.context.fillStyle = "#000";
+        Main.context.fillText("FPS: " + Main.fps, 10, 18);
     };
     Main.elapsed = 0.0;
     Main.lastDate = 0.0;
+    Main.frames = 0;
+    Main.fps = 0;
+    Main.f = 0;
     return Main;
 })();
 var StateManager = (function () {
@@ -36,8 +49,8 @@ var StateManager = (function () {
         this.states = new Array(1);
         this.states[0] = new MainMenuState(this);
     }
-    StateManager.prototype.update = function () {
-        this.currentState().update();
+    StateManager.prototype.update = function (deltaTime) {
+        this.currentState().update(deltaTime);
     };
     StateManager.prototype.render = function () {
         this.currentState().render();
@@ -83,7 +96,7 @@ var BasicState = (function () {
         this.type = type;
         this.sm = sm;
     }
-    BasicState.prototype.update = function () { };
+    BasicState.prototype.update = function (deltaTime) { };
     BasicState.prototype.render = function () { };
     BasicState.prototype.hide = function () { };
     BasicState.prototype.restore = function () { };
@@ -131,8 +144,9 @@ var GameState = (function (_super) {
         this.x = 0;
         this.y = 0;
         get('gameState').style.display = "initial";
-        this.player = new Player();
-        this.level = new Level();
+        this.level = new Level(Main.canvas.width, Main.canvas.height * 2);
+        this.player = new Player(this.level);
+        this.camera = new Camera(this.player);
     }
     GameState.prototype.hide = function () {
         get('gameState').style.display = "none";
@@ -143,8 +157,9 @@ var GameState = (function (_super) {
     GameState.prototype.destroy = function () {
         get('gameState').style.display = "none";
     };
-    GameState.prototype.update = function () {
-        this.player.update();
+    GameState.prototype.update = function (deltaTime) {
+        this.player.update(deltaTime);
+        this.camera.update();
     };
     GameState.prototype.render = function () {
         this.level.render();
@@ -153,87 +168,96 @@ var GameState = (function (_super) {
     return GameState;
 })(BasicState);
 var Player = (function () {
-    function Player() {
-        this.maxXv = 18;
-        this.maxYv = 18;
-        this.ax = 0.5;
-        this.ay = 0.5;
-        this.friction = 0.80;
-        this.width = 32;
-        this.height = 64;
-        this.x = Main.canvas.width / 2;
-        this.y = Main.canvas.height - this.height - 36;
-        this.xv = 0;
-        this.yv = 0;
+    function Player(level) {
+        this.a = 4;
+        this.friction = 0.66;
+        this.level = level;
+        this.width = 64;
+        this.height = 128;
+        this.pos = new Vec2();
+        this.pos.x = Main.canvas.width / 2;
+        this.pos.y = 100;
+        this.vel = new Vec2(0, 0);
+        this.maxVel = Player.MAX_V_WALK;
     }
-    Player.prototype.update = function () {
+    Player.prototype.update = function (deltaTime) {
         if (Keyboard.keysDown.length > 0) {
             if (Keyboard.contains(Keyboard.KEYS.W)) {
-                this.yv -= this.ay;
+                this.vel.y += this.a;
             }
             if (Keyboard.contains(Keyboard.KEYS.A)) {
-                this.xv -= this.ax;
+                this.vel.x -= this.a;
             }
             if (Keyboard.contains(Keyboard.KEYS.S)) {
-                this.yv += this.ay;
+                this.vel.y -= this.a;
             }
             if (Keyboard.contains(Keyboard.KEYS.D)) {
-                this.xv += this.ax;
+                this.vel.x += this.a;
+            }
+            if (Keyboard.contains(Keyboard.KEYS.SHIFT)) {
+                this.maxVel = Player.MAX_V_RUN;
+            }
+            else {
+                this.maxVel = Player.MAX_V_WALK;
             }
         }
-        this.xv *= this.friction;
-        this.yv *= this.friction;
-        if (this.xv > this.maxXv) {
-            this.xv = this.maxXv;
+        this.vel.x *= this.friction;
+        this.vel.y *= this.friction;
+        if (this.vel.x > this.maxVel) {
+            this.vel.x = this.maxVel;
         }
-        else if (this.xv < -this.maxXv) {
-            this.xv = -this.maxXv;
+        else if (this.vel.x < -this.maxVel) {
+            this.vel.x = -this.maxVel;
         }
-        if (this.yv > this.maxYv) {
-            this.yv = this.maxYv;
+        if (this.vel.y > this.maxVel) {
+            this.vel.y = this.maxVel;
         }
-        else if (this.xv < -this.maxYv) {
-            this.yv = -this.maxYv;
+        else if (this.vel.y < -this.maxVel) {
+            this.vel.y = -this.maxVel;
         }
-        this.x += this.xv;
-        this.y += this.yv;
-        if (this.x < 0) {
-            this.x = 0;
+        this.pos.x += this.vel.x;
+        this.pos.y += this.vel.y;
+        if (this.pos.x < 0) {
+            this.pos.x = 0;
         }
-        else if (this.x + this.width > Main.canvas.width) {
-            this.x = Main.canvas.width - this.width;
+        else if (this.pos.x + this.width > this.level.pixelWidth) {
+            this.pos.x = this.level.pixelWidth - this.width;
         }
-        if (this.y < 0) {
-            this.y = 0;
+        if (this.pos.y < this.height) {
+            this.pos.y = this.height;
         }
-        else if (this.y + this.height > Main.canvas.height) {
-            this.y = Main.canvas.height - this.height;
+        else if (this.pos.y > this.level.pixelHeight) {
+            this.pos.y = this.level.pixelHeight;
         }
     };
     Player.prototype.render = function () {
-        Resource.player.render(this.x, this.y, this.yv < -Math.abs(this.xv) ? 2 : this.xv > 0 ? 0 : 1, 32 - (Main.canvas.height - this.y) / (Main.canvas.height) * 14, 64 - (Main.canvas.height - this.y) / (Main.canvas.height) * 28);
+        Resource.player.render(this.pos.x, this.pos.y, this.vel.y < -Math.abs(this.vel.x) ? 2 : this.vel.x > 0 ? 0 : 1, this.width, this.height);
     };
+    Player.MAX_V_WALK = 6;
+    Player.MAX_V_RUN = 16;
     return Player;
 })();
 var Level = (function () {
-    function Level() {
+    function Level(width, height) {
+        this.pixelWidth = width;
+        this.pixelHeight = height;
         this.trunks = new Array(50);
         for (var i = 0; i < this.trunks.length; ++i) {
             var pos;
             do {
-                pos = new Vec2(Math.random() * (Main.canvas.width - 32), Math.random() * (Main.canvas.height - 142));
-            } while (Level.overlaps(pos, this.trunks));
+                pos = new Vec2(Math.random() * (Main.canvas.width - 32), Math.random() * (this.pixelHeight - 140) + 140);
+            } while (Level.overlaps(pos, this.trunks, new Vec2(32, 32)));
             this.trunks[i] = pos;
         }
     }
-    Level.overlaps = function (pos, trunks) {
+    Level.overlaps = function (pos, trunks, size) {
         for (var i = 0; i < trunks.length; ++i) {
             if (!trunks[i])
                 continue;
-            if (pos.x + 32 >= trunks[i].x &&
-                pos.x <= trunks[i].x + 32 &&
-                pos.y + 32 >= trunks[i].y &&
-                pos.y <= trunks[i].y + 32) {
+            if (pos.x + size.x >= trunks[i].x &&
+                pos.x <= trunks[i].x + size.x &&
+                pos.y + size.y >= trunks[i].y &&
+                pos.y <= trunks[i].y + size.y) {
                 return true;
             }
         }
@@ -241,9 +265,9 @@ var Level = (function () {
     };
     Level.prototype.render = function () {
         Main.context.fillStyle = "#CCB595";
-        Main.context.fillRect(0, Main.canvas.height - 110, Main.canvas.width, Main.canvas.height);
+        Camera.fillRect(0, 110, Main.canvas.width, 100);
         for (var i in this.trunks) {
-            Main.context.drawImage(Resource.deciduous_sapling, 0, 0, 32, 32, this.trunks[i].x, this.trunks[i].y, 32 - ((Main.canvas.height - this.trunks[i].y) / Main.canvas.height * 15), 32 - ((Main.canvas.height - this.trunks[i].y) / Main.canvas.height * 15));
+            Camera.drawImage(Resource.trunk, this.trunks[i].x, this.trunks[i].y, 32, 32);
         }
     };
     return Level;
@@ -261,7 +285,7 @@ var Resource = (function () {
     function Resource() {
     }
     Resource.loadAll = function () {
-        Resource.player = new SpriteSheet("res/player.png", 32, 64);
+        Resource.player = new SpriteSheet("res/player.png", 64, 128);
         Resource.trunk = new Image();
         Resource.trunk.src = "res/trunk.png";
         Resource.deciduous_sapling = new Image();
@@ -281,13 +305,30 @@ var SpriteSheet = (function () {
     SpriteSheet.prototype.render = function (x, y, frameNumber, width, height) {
         var sx = (frameNumber % this.image.width) * this.frameWidth;
         var sy = Math.floor(frameNumber / this.image.width) * this.frameHeight;
-        Main.context.drawImage(this.image, sx, sy, this.frameWidth, this.frameHeight, x, y, width, height);
+        Main.context.drawImage(this.image, sx, sy, this.frameWidth, this.frameHeight, x, Main.canvas.height - y + Camera.yo, width, height);
     };
     return SpriteSheet;
 })();
 var Camera = (function () {
-    function Camera() {
+    function Camera(player) {
+        this.player = player;
     }
+    Camera.prototype.update = function () {
+        Camera.yo = this.player.pos.y - this.player.height / 2 - Main.canvas.height / 2;
+        if (Camera.yo < 0) {
+            Camera.yo = 0;
+        }
+        else if (Camera.yo > this.player.level.pixelHeight - Main.canvas.height) {
+            Camera.yo = this.player.level.pixelHeight - Main.canvas.height;
+        }
+    };
+    Camera.fillRect = function (x, y, width, height) {
+        Main.context.fillRect(x, Main.canvas.height - y + Camera.yo, width, height);
+    };
+    Camera.drawImage = function (image, x, y, width, height) {
+        Main.context.drawImage(image, x, Main.canvas.height - y + Camera.yo, width, height);
+    };
+    Camera.yo = 0;
     return Camera;
 })();
 var ClickType;
@@ -328,6 +369,8 @@ var Keyboard = (function () {
     function Keyboard() {
     }
     Keyboard.onKeyDown = function (event) {
+        if (event.altKey)
+            return false;
         if (!Keyboard.contains(event.keyCode)) {
             Keyboard.keysDown.push(event.keyCode);
         }
@@ -341,22 +384,20 @@ var Keyboard = (function () {
         return false;
     };
     Keyboard.onKeyUp = function (event) {
-        var pos = -1;
+        if (event.altKey)
+            return;
         for (var i in Keyboard.keysDown) {
             if (Keyboard.keysDown[i] === event.keyCode) {
-                pos = i;
+                Keyboard.keysDown.splice(i, 1);
             }
-        }
-        if (pos != -1) {
-            Keyboard.keysDown.splice(pos, 1);
         }
     };
     Keyboard.KEYS = {
-        BACKSPACE: 8, TAB: 9, RETURN: 13, ESC: 27, SPACE: 32, PAGEUP: 33, PAGEDOWN: 34, END: 35, HOME: 36,
+        BACKSPACE: 8, TAB: 9, RETURN: 13, SHIFT: 16, ESC: 27, SPACE: 32, PAGEUP: 33, PAGEDOWN: 34, END: 35, HOME: 36,
         LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, INSERT: 45, DELETE: 46, ZERO: 48, ONE: 49, TWO: 50, THREE: 51,
         FOUR: 52, FIVE: 53, SIX: 54, SEVEN: 55, EIGHT: 56, NINE: 57, A: 65, B: 66, C: 67, D: 68, E: 69, F: 70,
         G: 71, H: 72, I: 73, J: 74, K: 75, L: 76, M: 77, N: 78, O: 79, P: 80, Q: 81, R: 82, S: 83, T: 84, U: 85,
-        V: 86, W: 87, X: 88, Y: 89, Z: 90, TILDE: 192, SHIFT: 999
+        V: 86, W: 87, X: 88, Y: 89, Z: 90, TILDE: 192
     };
     Keyboard.keysDown = new Array(0);
     return Keyboard;
