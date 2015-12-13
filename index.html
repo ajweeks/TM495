@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <title>TM495</title>
+    <meta name="author" content="AJ Weeks">
+    <meta name="keywords" content="TM495,2D,lumberjack,game,javascript,typescript,webgame,online,free,fun">
+    <meta name="description" content="A free online 2D lumberjack game in early Alpha by AJ Weeks">
     <script src="main.js"></script>
     <link href='https://fonts.googleapis.com/css?family=Sarala' rel='stylesheet' type='text/css'>
     <style type="text/css">
@@ -31,6 +35,7 @@
 
     h2 {
         font-size: 28px;
+        text-shadow: 2px 2px 2px #000;
     }
     .button {
         font-size: 24px;
@@ -78,10 +83,11 @@
     <div id="aboutState" style="display: none">
         <div id="backButton" class="button" onclick="Main.sm.enterPreviousState();">Back</div>
         <p>
-            about 'n stuff
+            TM495 is a 2D lumberjack game made by AJ Weeks in December 2015.
         </p>
         <div>
-            <a href="https://twitter.com/home?status=You%20should%20try%20AJ%20Weeks'%20newest%20game,%20TM495%20over%20at%20ajweeks.github.io/tm495">
+            <a href="https://twitter.com/home?status=You%20should%20try%20AJ%20Weeks'%20newest%20game,%20TM495%20over%20at%20ajweeks.github.io/tm495"
+                style="color: rgba(0, 0,0,0)"> <!-- Prevent weird line from rendering by making it invisible -->
                 <img src="res/twitter.png" style="cursor: pointer">
             </a>
             <a href="https://www.facebook.com/sharer/sharer.php?u=ajweeks.github.io">
@@ -93,8 +99,17 @@
     <div id="gameState" style="display: none">
         <div id="backButton" class="button" onclick="Main.sm.enterPreviousState();">Back</div>
         <div id="gameWindow">
-            <canvas id="gameCanvas" width="720" height="480"></canvas>
+            <canvas id="gameCanvas" width="720" height="480">
+                Your browser doesn't appear to support the
+                <code>&lt;canvas&gt;</code> element.
+            </canvas>
         </div>
+        <br />
+        <span>
+            WASD or arrow keys to move
+            <br />
+            Shift to sprint
+        </span>
     </div>
 
 

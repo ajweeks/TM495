@@ -1,3 +1,4 @@
+// Copyright AJ Weeks 2015
 
 function get(what: string): HTMLElement {
     return document.getElementById(what);
@@ -5,15 +6,20 @@ function get(what: string): HTMLElement {
 
 class Main {
 
+    static VERSION = "0.013";
+
     static canvas: HTMLCanvasElement;
     static context: CanvasRenderingContext2D;
     static sm: StateManager;
 
     // TODO OPTIMIZE(AJ): Look into the effect of having a variable constantly incrementing like this
+    // Is it ever even used?
     static elapsed: number = 0.0;
     static lastDate: number = 0.0;
 
     init(): void {
+        console.log("TM495 v" + Main.VERSION + " by AJ Weeks");
+
         Main.canvas = <HTMLCanvasElement>get('gameCanvas');
         Main.context = Main.canvas.getContext('2d');
 
@@ -52,7 +58,9 @@ class Main {
         Main.sm.update(deltaTime);
         Main.sm.render();
 
-        Main.context.fillStyle = "#000";
+        Main.context.fillStyle = "#111";
+        Main.context.fillText("FPS: " + Main.fps, 12, 20);
+        Main.context.fillStyle = "#DDD";
         Main.context.fillText("FPS: " + Main.fps, 10, 18);
     }
 }
@@ -249,16 +257,16 @@ class Player {
 
     update(deltaTime: number): void {
         if (Keyboard.keysDown.length > 0) {
-            if (Keyboard.contains(Keyboard.KEYS.W)) {
+            if (Keyboard.contains(Keyboard.KEYS.W) || Keyboard.contains(Keyboard.KEYS.UP)) {
                 this.vel.y += this.a;
             }
-            if (Keyboard.contains(Keyboard.KEYS.A)) {
+            if (Keyboard.contains(Keyboard.KEYS.A) || Keyboard.contains(Keyboard.KEYS.LEFT)) {
                 this.vel.x -= this.a;
             }
-            if (Keyboard.contains(Keyboard.KEYS.S)) {
+            if (Keyboard.contains(Keyboard.KEYS.S) || Keyboard.contains(Keyboard.KEYS.DOWN)) {
                 this.vel.y -= this.a;
             }
-            if (Keyboard.contains(Keyboard.KEYS.D)) {
+            if (Keyboard.contains(Keyboard.KEYS.D) || Keyboard.contains(Keyboard.KEYS.RIGHT)) {
                 this.vel.x += this.a;
             }
 
@@ -292,8 +300,19 @@ class Player {
         //     this.vel.y = 0;
         // }
 
+        var prevPos = this.pos;
+
         this.pos.x += this.vel.x;
         this.pos.y += this.vel.y;
+
+        for (var i in this.level.trees) {
+            if (this.pos.x <= this.level.trees[i].pos.x + this.level.trees[i].size.x &&
+                this.pos.x + this.width >= this.level.trees[i].pos.x &&
+                this.pos.y - this.height <= this.level.trees[i].pos.y &&
+                this.pos.y >= this.level.trees[i].pos.y - this.height) {
+                    this.pos = prevPos;
+            }
+        }
 
         if (this.pos.x < 0) {
             this.pos.x = 0;
@@ -319,7 +338,7 @@ class Player {
 
 class Level {
 
-    trunks: Vec2[];
+    trees: Tree[];
     pixelWidth: number;
     pixelHeight: number;
 
@@ -327,25 +346,25 @@ class Level {
         this.pixelWidth = width;
         this.pixelHeight = height;
 
-        this.trunks = new Array<Vec2>(50);
-        for (var i = 0; i < this.trunks.length; ++i) {
+        this.trees = new Array<Tree>(50);
+        for (var i = 0; i < this.trees.length; ++i) {
             var pos: Vec2;
             do {
-                pos = new Vec2(Math.random() * (Main.canvas.width - 32), Math.random() * (this.pixelHeight - 140) + 140);
-            } while (Level.overlaps(pos, this.trunks, new Vec2(32, 32)));
+                pos = new Vec2(Math.random() * (Main.canvas.width - 48), Math.random() * (this.pixelHeight - 140) + 140);
+            } while (Level.overlaps(pos, this.trees, 48, 48));
 
-            this.trunks[i] = pos;
+            this.trees[i] = new Tree(pos, new Vec2(48, 48));
         }
     }
 
-    static overlaps(pos: Vec2, trunks: Vec2[], size: Vec2): boolean {
-        for (var i = 0; i < trunks.length; ++i) {
-            if (!trunks[i]) continue; // skip the undefined trunks
+    static overlaps(pos: Vec2, trees: Tree[], width: number, height: number): boolean {
+        for (var i = 0; i < trees.length; ++i) {
+            if (!trees[i]) continue; // skip the undefined trunks
 
-            if (pos.x + size.x >= trunks[i].x &&
-                pos.x <= trunks[i].x + size.x &&
-                pos.y + size.y >= trunks[i].y &&
-                pos.y <= trunks[i].y + size.y) {
+            if (pos.x + width >= trees[i].pos.x &&
+                pos.x <= trees[i].pos.x + width &&
+                pos.y + height >= trees[i].pos.y &&
+                pos.y <= trees[i].pos.y + height) {
                 return true;
             }
         }
@@ -357,11 +376,36 @@ class Level {
         Camera.fillRect(0, 110, Main.canvas.width, 100);
 
         // LATER(AJ): add some randomness to how trunks are drawn
-        for (var i in this.trunks) {
-            Camera.drawImage(Resource.trunk, this.trunks[i].x, this.trunks[i].y, 32, 32);
+        for (var i in this.trees) {
+            this.trees[i].render();
         }
     }
 
+}
+
+class Tree {
+
+    pos: Vec2;
+    size: Vec2;
+    chopped: boolean;
+
+    constructor(pos: Vec2, size: Vec2) {
+        this.pos = pos;
+        this.size = size;
+        this.chopped = false;
+    }
+
+    chop() { // not at all necessary - totally inlinable, but an awesome method name
+        this.chopped = true;
+    }
+
+    render() {
+        if (this.chopped) {
+            Camera.drawImage(Resource.trunk, this.pos.x, this.pos.y, this.size.x, this.size.y);
+        } else {
+            Camera.drawImage(Resource.tree, this.pos.x, this.pos.y, 64, 128); // Later make this a varible dude
+        }
+    }
 }
 
 class Vec2 {
@@ -380,9 +424,9 @@ class Vec2 {
 // I've never tried this method before, we'll see if it's any good
 class Resource {
 
-    // Images
-    static player: SpriteSheet; // player sprite sheet
+    static player: SpriteSheet;
     static trunk: HTMLImageElement;
+    static tree: HTMLImageElement;
     static deciduous_sapling: HTMLImageElement;
     static coninferous_sapling: HTMLImageElement;
 
@@ -391,6 +435,9 @@ class Resource {
 
         Resource.trunk = new Image();
         Resource.trunk.src = "res/trunk.png";
+
+        Resource.tree = new Image();
+        Resource.tree.src = "res/tree.png";
 
         Resource.deciduous_sapling = new Image();
         Resource.deciduous_sapling.src = "res/deciduous_sapling.png";
@@ -401,10 +448,6 @@ class Resource {
 }
 
 class SpriteSheet {
-
-    // Number of frames per axis
-    // width: number;
-    // height: number;
 
     // Size of each frame
     frameWidth: number;
@@ -430,7 +473,7 @@ class SpriteSheet {
 
 }
 
-// LATER(AJ): Figure out how to render to a camera, so we can use cool effects and stuff
+// LATER(AJ): Figure out how to render to a camera, so we can use cool post-processing effects and stuff
 // For now, just use this as a place to hold an offset to render things with
 class Camera {
 
@@ -516,6 +559,15 @@ class Keyboard {
         if (!Keyboard.contains(event.keyCode)) {
             Keyboard.keysDown.push(event.keyCode);
         }
+
+        for (var k in Keyboard.KEYS) {
+            if (event.keyCode == Keyboard.KEYS[k]) {
+                return false; // we handled this keypress, don't pass it on to the browser
+            }
+        }
+
+        return true; // We didn't handle this keypress,
+                     // Let the browser decide what to do with this keypress
     }
 
     static contains(keyCode: number): boolean {
@@ -528,11 +580,10 @@ class Keyboard {
     }
 
     static onKeyUp(event: KeyboardEvent) {
-        if (event.altKey) return; // let's not deal with this for now
-
         for (var i in Keyboard.keysDown) {
             if (Keyboard.keysDown[i] === event.keyCode) {
                 Keyboard.keysDown.splice(i, 1);
+                // don't break after the item has been found, in case it's in there more than once
             }
         }
     }

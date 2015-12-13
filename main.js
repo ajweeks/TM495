@@ -10,6 +10,7 @@ var Main = (function () {
     function Main() {
     }
     Main.prototype.init = function () {
+        console.log("TM495 v" + Main.VERSION + " by AJ Weeks");
         Main.canvas = get('gameCanvas');
         Main.context = Main.canvas.getContext('2d');
         Resource.loadAll();
@@ -34,9 +35,12 @@ var Main = (function () {
         Main.context.fillRect(0, 0, Main.canvas.width, Main.canvas.height);
         Main.sm.update(deltaTime);
         Main.sm.render();
-        Main.context.fillStyle = "#000";
+        Main.context.fillStyle = "#111";
+        Main.context.fillText("FPS: " + Main.fps, 12, 20);
+        Main.context.fillStyle = "#DDD";
         Main.context.fillText("FPS: " + Main.fps, 10, 18);
     };
+    Main.VERSION = "0.013";
     Main.elapsed = 0.0;
     Main.lastDate = 0.0;
     Main.frames = 0;
@@ -182,16 +186,16 @@ var Player = (function () {
     }
     Player.prototype.update = function (deltaTime) {
         if (Keyboard.keysDown.length > 0) {
-            if (Keyboard.contains(Keyboard.KEYS.W)) {
+            if (Keyboard.contains(Keyboard.KEYS.W) || Keyboard.contains(Keyboard.KEYS.UP)) {
                 this.vel.y += this.a;
             }
-            if (Keyboard.contains(Keyboard.KEYS.A)) {
+            if (Keyboard.contains(Keyboard.KEYS.A) || Keyboard.contains(Keyboard.KEYS.LEFT)) {
                 this.vel.x -= this.a;
             }
-            if (Keyboard.contains(Keyboard.KEYS.S)) {
+            if (Keyboard.contains(Keyboard.KEYS.S) || Keyboard.contains(Keyboard.KEYS.DOWN)) {
                 this.vel.y -= this.a;
             }
-            if (Keyboard.contains(Keyboard.KEYS.D)) {
+            if (Keyboard.contains(Keyboard.KEYS.D) || Keyboard.contains(Keyboard.KEYS.RIGHT)) {
                 this.vel.x += this.a;
             }
             if (Keyboard.contains(Keyboard.KEYS.SHIFT)) {
@@ -215,8 +219,17 @@ var Player = (function () {
         else if (this.vel.y < -this.maxVel) {
             this.vel.y = -this.maxVel;
         }
+        var prevPos = this.pos;
         this.pos.x += this.vel.x;
         this.pos.y += this.vel.y;
+        for (var i in this.level.trees) {
+            if (this.pos.x <= this.level.trees[i].pos.x + this.level.trees[i].size.x &&
+                this.pos.x + this.width >= this.level.trees[i].pos.x &&
+                this.pos.y - this.height <= this.level.trees[i].pos.y &&
+                this.pos.y >= this.level.trees[i].pos.y - this.height) {
+                this.pos = prevPos;
+            }
+        }
         if (this.pos.x < 0) {
             this.pos.x = 0;
         }
@@ -241,23 +254,23 @@ var Level = (function () {
     function Level(width, height) {
         this.pixelWidth = width;
         this.pixelHeight = height;
-        this.trunks = new Array(50);
-        for (var i = 0; i < this.trunks.length; ++i) {
+        this.trees = new Array(50);
+        for (var i = 0; i < this.trees.length; ++i) {
             var pos;
             do {
-                pos = new Vec2(Math.random() * (Main.canvas.width - 32), Math.random() * (this.pixelHeight - 140) + 140);
-            } while (Level.overlaps(pos, this.trunks, new Vec2(32, 32)));
-            this.trunks[i] = pos;
+                pos = new Vec2(Math.random() * (Main.canvas.width - 48), Math.random() * (this.pixelHeight - 140) + 140);
+            } while (Level.overlaps(pos, this.trees, 48, 48));
+            this.trees[i] = new Tree(pos, new Vec2(48, 48));
         }
     }
-    Level.overlaps = function (pos, trunks, size) {
-        for (var i = 0; i < trunks.length; ++i) {
-            if (!trunks[i])
+    Level.overlaps = function (pos, trees, width, height) {
+        for (var i = 0; i < trees.length; ++i) {
+            if (!trees[i])
                 continue;
-            if (pos.x + size.x >= trunks[i].x &&
-                pos.x <= trunks[i].x + size.x &&
-                pos.y + size.y >= trunks[i].y &&
-                pos.y <= trunks[i].y + size.y) {
+            if (pos.x + width >= trees[i].pos.x &&
+                pos.x <= trees[i].pos.x + width &&
+                pos.y + height >= trees[i].pos.y &&
+                pos.y <= trees[i].pos.y + height) {
                 return true;
             }
         }
@@ -266,11 +279,30 @@ var Level = (function () {
     Level.prototype.render = function () {
         Main.context.fillStyle = "#CCB595";
         Camera.fillRect(0, 110, Main.canvas.width, 100);
-        for (var i in this.trunks) {
-            Camera.drawImage(Resource.trunk, this.trunks[i].x, this.trunks[i].y, 32, 32);
+        for (var i in this.trees) {
+            this.trees[i].render();
         }
     };
     return Level;
+})();
+var Tree = (function () {
+    function Tree(pos, size) {
+        this.pos = pos;
+        this.size = size;
+        this.chopped = false;
+    }
+    Tree.prototype.chop = function () {
+        this.chopped = true;
+    };
+    Tree.prototype.render = function () {
+        if (this.chopped) {
+            Camera.drawImage(Resource.trunk, this.pos.x, this.pos.y, this.size.x, this.size.y);
+        }
+        else {
+            Camera.drawImage(Resource.tree, this.pos.x, this.pos.y, 64, 128);
+        }
+    };
+    return Tree;
 })();
 var Vec2 = (function () {
     function Vec2(x, y) {
@@ -288,6 +320,8 @@ var Resource = (function () {
         Resource.player = new SpriteSheet("res/player.png", 64, 128);
         Resource.trunk = new Image();
         Resource.trunk.src = "res/trunk.png";
+        Resource.tree = new Image();
+        Resource.tree.src = "res/tree.png";
         Resource.deciduous_sapling = new Image();
         Resource.deciduous_sapling.src = "res/deciduous_sapling.png";
         Resource.coninferous_sapling = new Image();
@@ -374,6 +408,12 @@ var Keyboard = (function () {
         if (!Keyboard.contains(event.keyCode)) {
             Keyboard.keysDown.push(event.keyCode);
         }
+        for (var k in Keyboard.KEYS) {
+            if (event.keyCode == Keyboard.KEYS[k]) {
+                return false;
+            }
+        }
+        return true;
     };
     Keyboard.contains = function (keyCode) {
         for (var i in Keyboard.keysDown) {
@@ -384,8 +424,6 @@ var Keyboard = (function () {
         return false;
     };
     Keyboard.onKeyUp = function (event) {
-        if (event.altKey)
-            return;
         for (var i in Keyboard.keysDown) {
             if (Keyboard.keysDown[i] === event.keyCode) {
                 Keyboard.keysDown.splice(i, 1);
