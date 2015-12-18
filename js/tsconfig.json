@@ -20,7 +20,9 @@
         "!node_modules/**"
     ],
     "files": [
-        "main.ts"
+        "main.ts",
+        "three.d.ts",
+        "webgl.d.ts"
     ],
     "exclude": []
 }

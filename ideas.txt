@@ -1,13 +1,32 @@
-__TM495__
+
+|/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\|
+|====--       TM495        --====|
+|/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\|
+
+__ALTERNATE NAMES__
+Coniferous Cannibal (maybe the main character can be a tree??)
+  - You need to eat your own kind to survive, and if you don't get enough (during the right season) then you die?
+Splinterless
+Tree Mangler (TM!)
+Flora Finisher
+Master of Wood Chips
+Lumberwhack (hah, get it?)
+Boom Hakken (tree chopper)
+Boom Snijder (tree cutter)
+Chop chop
+Axer the Great
+Tree faller
+
 
 Lumberjack game
 -Cut Down trees, points awarded for number of trees cut down within time limit
 -Click as fast as you can? Or put a limit on it?
--I don't want a click-spam game like cookie clicker starts off as, maybe something more like minecraft's method? (click & hold)
+-Not a click-spam game like cookie clicker starts off as, maybe something more like Minecraft's method? (click & hold)
 -Bigger trees take more hits, give more wood (points)
 -Taller trees take same number of hits, give more wood
 
-__Gameplay__
+__GAMEPLAY__
+_Option 01_
 You have n seconds to gather as much wood as you can.
 You must carry the wood back to your truck before time runs out for it to count (you can only carry x logs at a time)
 In between games you can use credits earned during games to upgrade your character (see __Upgrades__ below)
@@ -15,6 +34,24 @@ Game field is a forest (pixel art by the incredibly talented yours truely)
 Isometric view, camera follows player. Zoom level is about 1/4 of the full field
 Forest is denser, and has bigger trees near the back of the field?
   -Trade off: walk farther and have to carry wood back farther, but get more
+
+_Option 02_
+Speed-running type game
+Endless runner?
+Like a race, where you have to chop wood along the way.
+Each log removes time from your final time?
+Trade off: only go for easy trees with lots of wood
+   - Small trees are quick, basically instant - but return very little wood
+   - Large trees are slow, requiring you to completely stop for a few seconds,
+     but they drop much more wood
+
+
+
+
+|/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\|
+|====-- Fantasy Feature List --====|
+|/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\|
+
 
 __Misc__
 Standing on top of a sapling when it grows into a tree will kill you? (or just inure you) and cause you to lose some points

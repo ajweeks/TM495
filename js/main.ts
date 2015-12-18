@@ -4,12 +4,12 @@ function get(what: string): HTMLElement {
     return document.getElementById(what);
 }
 
+// TODO(AJ): see if we can make Main not so static, that's probably a bad thing, right?
 class Main {
 
     static VERSION = "0.013";
 
-    static canvas: HTMLCanvasElement;
-    static context: CanvasRenderingContext2D;
+    static renderer: Renderer;
     static sm: StateManager;
 
     // TODO OPTIMIZE(AJ): Look into the effect of having a variable constantly incrementing like this
@@ -20,12 +20,11 @@ class Main {
     init(): void {
         console.log("TM495 v" + Main.VERSION + " by AJ Weeks");
 
-        Main.canvas = <HTMLCanvasElement>get('gameCanvas');
-        Main.context = Main.canvas.getContext('2d');
-
         Resource.loadAll();
 
+
         Main.sm = new StateManager();
+        Main.renderer = new Renderer();
 
         Main.lastDate = Date.now();
 
@@ -52,16 +51,46 @@ class Main {
             Main.frames = 0;
         }
 
-        Main.context.fillStyle = "#284B32";
-        Main.context.fillRect(0, 0, Main.canvas.width, Main.canvas.height);
-
         Main.sm.update(deltaTime);
         Main.sm.render();
+    }
+}
 
-        Main.context.fillStyle = "#111";
-        Main.context.fillText("FPS: " + Main.fps, 12, 20);
-        Main.context.fillStyle = "#DDD";
-        Main.context.fillText("FPS: " + Main.fps, 10, 18);
+class Renderer {
+    previousTime: number = 0.0;
+    elapsed: number = 0.0;
+
+    renderer: THREE.WebGLRenderer;
+    camera: THREE.Camera;
+
+    width = 780;
+    height = 480;
+
+    constructor() {
+        this.renderer = new THREE.WebGLRenderer({alpha: true});
+        this.renderer.setSize(this.width, this.height);
+        this.renderer.setClearColor(0xFFFFFF, 1);
+
+        this.renderer.domElement.textContent = "Your browser doesn't appear to support the <code>&lt;canvas&gt;</code> element.";
+        get('gameContent').appendChild(this.renderer.domElement);
+
+        this.camera = new THREE.PerspectiveCamera(70, this.width/this.height, 0.1, 1000);
+        this.camera.position = new THREE.Vector3(0, -6,20);
+        this.camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+        this.previousTime = new Date().getTime();
+    }
+
+    render(scene: THREE.Scene) {
+        var now = new Date().getTime();
+        this.elapsed += (this.previousTime - now);
+
+        this.renderer.render(scene, this.camera);
+        this.previousTime = now;
+    }
+
+    update() {
+
     }
 }
 
@@ -195,15 +224,17 @@ class GameState extends BasicState {
     y: number = 0;
     player: Player;
     level: Level;
-    camera: Camera;
+    scene: THREE.Scene;
 
     constructor(sm: StateManager) {
         super(STATE_TYPE.GAME, sm);
         get('gameState').style.display = "initial";
 
-        this.level = new Level(Main.canvas.width, Main.canvas.height * 2);
-        this.player = new Player(this.level);
-        this.camera = new Camera(this.player);
+        this.scene = new THREE.Scene();
+        this.scene.add(new THREE.AmbientLight(new THREE.Color(0.9, 0.9, 0.9).getHex()));
+
+        this.level = new Level(45, 100, this.scene);
+        this.player = new Player(this.level, this.scene);
     }
 
     hide(): void {
@@ -213,147 +244,121 @@ class GameState extends BasicState {
         get('gameState').style.display = "initial";
     }
     destroy(): void {
+        for (var i = this.scene.children.length - 1; i >= 0; --i) {
+            this.scene.remove(this.scene.children[i]);
+        }
         get('gameState').style.display = "none";
     }
 
     update(deltaTime: number): void {
         this.player.update(deltaTime);
-        this.camera.update();
+
+        Main.renderer.camera.position.x = this.player.pivot.position.x;
+        Main.renderer.camera.position.y = this.player.pivot.position.y - 5;
     }
 
     render(): void {
-        this.level.render();
-        this.player.render();
+        Main.renderer.render(this.scene);
     }
 }
 
 class Player {
-    static MAX_V_WALK: number = 6;
-    static MAX_V_RUN: number = 16;
+    static MAX_V_WALK: number = 0.015;
+    static MAX_V_RUN: number = 0.025;
 
     width: number;
     height: number;
 
-    pos: Vec2;
-    vel: Vec2;
-    maxVel;
-
-    a: number = 4;
-
-    friction: number = 0.66;
+    pivot: THREE.Object3D;
+    //mesh: THREE.Mesh;
+    maxVel: number;
 
     level: Level;
 
-    constructor(level: Level) {
+    constructor(level: Level, scene: THREE.Scene) {
         this.level = level;
-        this.width = 64;
-        this.height = 128;
-        this.pos = new Vec2();
-        this.pos.x = Main.canvas.width / 2;
-        this.pos.y = 100;
-        this.vel = new Vec2(0, 0);
+        this.width = 2.5;
+        this.height = 5;
+
+        this.pivot = new THREE.Object3D();
+        this.pivot.position = new THREE.Vector3(0, this.height, 0);
+        this.pivot.rotateX(Math.PI / 6.0);
+
+        var planeGeometry = new THREE.PlaneGeometry(this.width, this.height);
+        var planeMaterial = new THREE.MeshPhongMaterial(
+            {
+                map: THREE.ImageUtils.loadTexture("res/player1.png"), transparent: true
+            }
+        );
+        var mesh = new THREE.Mesh(planeGeometry, planeMaterial);
+        mesh.position = new THREE.Vector3(0, 0, 2.5);
+
+        this.pivot.add(mesh);
+        scene.add(this.pivot);
+
         this.maxVel = Player.MAX_V_WALK;
     }
 
     update(deltaTime: number): void {
         if (Keyboard.keysDown.length > 0) {
-            if (Keyboard.contains(Keyboard.KEYS.W) || Keyboard.contains(Keyboard.KEYS.UP)) {
-                this.vel.y += this.a;
-            }
-            if (Keyboard.contains(Keyboard.KEYS.A) || Keyboard.contains(Keyboard.KEYS.LEFT)) {
-                this.vel.x -= this.a;
-            }
-            if (Keyboard.contains(Keyboard.KEYS.S) || Keyboard.contains(Keyboard.KEYS.DOWN)) {
-                this.vel.y -= this.a;
-            }
-            if (Keyboard.contains(Keyboard.KEYS.D) || Keyboard.contains(Keyboard.KEYS.RIGHT)) {
-                this.vel.x += this.a;
-            }
-
             if (Keyboard.contains(Keyboard.KEYS.SHIFT)) {
                 this.maxVel = Player.MAX_V_RUN;
             } else {
                 this.maxVel = Player.MAX_V_WALK;
             }
-        }
 
-        this.vel.x *= this.friction;
-        this.vel.y *= this.friction;
+            if (Keyboard.contains(Keyboard.KEYS.W) || Keyboard.contains(Keyboard.KEYS.UP)) {
+                this.pivot.position.y += this.maxVel * deltaTime;
+            } else if (Keyboard.contains(Keyboard.KEYS.S) || Keyboard.contains(Keyboard.KEYS.DOWN)) {
+                this.pivot.position.y -= this.maxVel * deltaTime;
+            }
+            if (Keyboard.contains(Keyboard.KEYS.A) || Keyboard.contains(Keyboard.KEYS.LEFT)) {
+                this.pivot.position.x -= this.maxVel * deltaTime;
+            } else if (Keyboard.contains(Keyboard.KEYS.D) || Keyboard.contains(Keyboard.KEYS.RIGHT)) {
+                this.pivot.position.x += this.maxVel * deltaTime;
+            }
 
-        if (this.vel.x > this.maxVel) {
-            this.vel.x = this.maxVel;
-        } else if (this.vel.x < -this.maxVel) {
-            this.vel.x = -this.maxVel;
-        }
-        // NOTE(AJ): This makes the player turn to the left when standing still after walking
-        //           So just leave it as a small nubmer
-        //else if (this.vel.x > -0.01 && this.vel.x < 0.01) {
-        //    this.vel.x = 0;
-        //}
-
-        if (this.vel.y > this.maxVel) {
-            this.vel.y = this.maxVel;
-        } else if (this.vel.y < -this.maxVel) {
-            this.vel.y = -this.maxVel;
-        }
-        // else if (this.vel.y > -0.01 && this.vel.y < 0.01) {
-        //     this.vel.y = 0;
-        // }
-
-        var prevPos = this.pos;
-
-        this.pos.x += this.vel.x;
-        this.pos.y += this.vel.y;
-
-        for (var i in this.level.trees) {
-            if (this.pos.x <= this.level.trees[i].pos.x + this.level.trees[i].size.x &&
-                this.pos.x + this.width >= this.level.trees[i].pos.x &&
-                this.pos.y - this.height <= this.level.trees[i].pos.y &&
-                this.pos.y >= this.level.trees[i].pos.y - this.height) {
-                    this.pos = prevPos;
+            if (this.pivot.position.x - this.width / 2 < -this.level.width / 2) {
+                this.pivot.position.x = -this.level.width / 2 + this.width / 2;
+            }
+            if (this.pivot.position.x + this.width / 2 > this.level.width / 2) {
+                this.pivot.position.x = this.level.width / 2 - this.width / 2;
+            }
+            if (this.pivot.position.y - this.height > this.level.height) {
+                this.pivot.position.y = this.level.height + this.height / 2;
+            }
+            if (this.pivot.position.y - this.height < 0) { // TODO(AJ): This isn't quite perfect yet, but it'll work for now
+                this.pivot.position.y = this.height;
             }
         }
-
-        if (this.pos.x < 0) {
-            this.pos.x = 0;
-        } else if (this.pos.x + this.width > this.level.pixelWidth) {
-            this.pos.x = this.level.pixelWidth - this.width;
-        }
-        if (this.pos.y < this.height) { // NOTE(AJ): Y=0 is bottom of screen
-            this.pos.y = this.height;
-        } else if (this.pos.y > this.level.pixelHeight) {
-            this.pos.y = this.level.pixelHeight;
-        }
-    }
-
-    render(): void {
-        Resource.player.render(
-            this.pos.x,
-            this.pos.y,
-            this.vel.y < -Math.abs(this.vel.x) ? 2 : this.vel.x > 0 ? 0 : 1,
-            this.width,
-            this.height);
     }
 }
 
 class Level {
 
     trees: Tree[];
-    pixelWidth: number;
-    pixelHeight: number;
+    width: number;
+    height: number;
+    mesh: THREE.Mesh;
 
-    constructor(width: number, height: number) {
-        this.pixelWidth = width;
-        this.pixelHeight = height;
+    constructor(width: number, height: number, scene: THREE.Scene) {
+        this.width = width;
+        this.height = height;
+
+        var planeGeometry = new THREE.PlaneGeometry(width, height);
+        var planeMaterial = new THREE.MeshBasicMaterial({ color: 0x332230, wireframe: false });
+        this.mesh = new THREE.Mesh(planeGeometry, planeMaterial);
+        this.mesh.position = new THREE.Vector3(0, this.height / 2, 0);
+        scene.add(this.mesh);
 
         this.trees = new Array<Tree>(50);
         for (var i = 0; i < this.trees.length; ++i) {
             var pos: Vec2;
             do {
-                pos = new Vec2(Math.random() * (Main.canvas.width - 48), Math.random() * (this.pixelHeight - 140) + 140);
-            } while (Level.overlaps(pos, this.trees, 48, 48));
+            } while (false);
+            pos = new Vec2(Math.random() * width - width / 2, Math.random() * height - height / 2);
 
-            this.trees[i] = new Tree(pos, new Vec2(48, 48));
+            this.trees[i] = new Tree(pos.x, pos.y, new Vec2(48, 48), scene);
         }
     }
 
@@ -361,50 +366,47 @@ class Level {
         for (var i = 0; i < trees.length; ++i) {
             if (!trees[i]) continue; // skip the undefined trunks
 
-            if (pos.x + width >= trees[i].pos.x &&
-                pos.x <= trees[i].pos.x + width &&
-                pos.y + height >= trees[i].pos.y &&
-                pos.y <= trees[i].pos.y + height) {
+            if (pos.x + width >= trees[i].pivot.position.x &&
+                pos.x <= trees[i].pivot.position.x + width &&
+                pos.y + height >= trees[i].pivot.position.y &&
+                pos.y <= trees[i].pivot.position.y + height) {
                 return true;
             }
         }
         return false;
     }
-
-    render(): void {
-        Main.context.fillStyle = "#CCB595"
-        Camera.fillRect(0, 110, Main.canvas.width, 100);
-
-        // LATER(AJ): add some randomness to how trunks are drawn
-        for (var i in this.trees) {
-            this.trees[i].render();
-        }
-    }
-
 }
 
 class Tree {
 
-    pos: Vec2;
+    pivot: THREE.Object3D;
     size: Vec2;
     chopped: boolean;
 
-    constructor(pos: Vec2, size: Vec2) {
-        this.pos = pos;
+    constructor(x: number, y: number, size: Vec2, scene: THREE.Scene) {
+
+        this.pivot = new THREE.Object3D();
+        this.pivot.position = new THREE.Vector3(x, y, 0);
+        this.pivot.rotateX(Math.PI / 6.0);
+
+        var planeGeometry = new THREE.PlaneGeometry(3, 6);
+        var planeMaterial = new THREE.MeshPhongMaterial(
+            {
+                map: THREE.ImageUtils.loadTexture("res/tree.png"), transparent: true
+            }
+        );
+        var mesh = new THREE.Mesh(planeGeometry, planeMaterial);
+        mesh.position.z = 3;
+
+        this.pivot.add(mesh);
+        scene.add(this.pivot);
+
         this.size = size;
         this.chopped = false;
     }
 
     chop() { // not at all necessary - totally inlinable, but an awesome method name
         this.chopped = true;
-    }
-
-    render() {
-        if (this.chopped) {
-            Camera.drawImage(Resource.trunk, this.pos.x, this.pos.y, this.size.x, this.size.y);
-        } else {
-            Camera.drawImage(Resource.tree, this.pos.x, this.pos.y, 64, 128); // Later make this a varible dude
-        }
     }
 }
 
@@ -462,47 +464,6 @@ class SpriteSheet {
 
         this.frameWidth = frameWidth;
         this.frameHeight = frameHeight;
-    }
-
-    /** @param x, y: the position of the object in *level* space (knows nothing about the camera) */
-    render(x: number, y: number, frameNumber: number, width: number, height: number): void {
-        var sx = (frameNumber % this.image.width) * this.frameWidth;
-        var sy = Math.floor(frameNumber / this.image.width) * this.frameHeight;
-        Main.context.drawImage(this.image, sx, sy, this.frameWidth, this.frameHeight, x, Main.canvas.height - y + Camera.yo, width, height);
-    }
-
-}
-
-// LATER(AJ): Figure out how to render to a camera, so we can use cool post-processing effects and stuff
-// For now, just use this as a place to hold an offset to render things with
-class Camera {
-
-    //static xo = 0;
-    static yo = 0;
-
-    player: Player;
-
-    constructor(player: Player) {
-        this.player = player;
-    }
-
-    update() {
-        Camera.yo = this.player.pos.y - this.player.height / 2 - Main.canvas.height / 2;
-        if (Camera.yo < 0) {
-            Camera.yo = 0;
-        } else if (Camera.yo > this.player.level.pixelHeight - Main.canvas.height) {
-            Camera.yo = this.player.level.pixelHeight - Main.canvas.height;
-        }
-    }
-
-    /* Renders a rectangle at (x, y) WORLD SPACE correctly using camera's yo */
-    static fillRect(x: number, y: number, width: number, height: number): void {
-        Main.context.fillRect(x, Main.canvas.height - y + Camera.yo, width, height);
-    }
-
-    /* Renders an image at (x, y) WORLD SPACE correctly using camera's yo */
-    static drawImage(image: HTMLImageElement, x: number, y: number, width: number, height: number): void {
-        Main.context.drawImage(image, x, Main.canvas.height - y + Camera.yo, width, height);
     }
 }
 
@@ -606,10 +567,10 @@ window.onkeydown = Keyboard.onKeyDown;
 window.onkeyup = Keyboard.onKeyUp;
 
 window.onload = function() {
-    get('gameCanvas').oncontextmenu = function() { return false; }
-    get('gameCanvas').onmousedown = function(event: MouseEvent) { Mouse.click(event, true) };
-    get('gameCanvas').onmouseup = function(event: MouseEvent) { Mouse.click(event, false) };
-    get('gameCanvas').onmousemove = Mouse.move;
+    get('gameContent').oncontextmenu = function() { return false; }
+    get('gameContent').onmousedown = function(event: MouseEvent) { Mouse.click(event, true) };
+    get('gameContent').onmouseup = function(event: MouseEvent) { Mouse.click(event, false) };
+    get('gameContent').onmousemove = Mouse.move;
 
     new Main().init();
 }

@@ -5,7 +5,8 @@
     <meta name="author" content="AJ Weeks">
     <meta name="keywords" content="TM495,2D,lumberjack,game,javascript,typescript,webgame,online,free,fun">
     <meta name="description" content="A free online 2D lumberjack game in early Alpha by AJ Weeks">
-    <script src="main.js"></script>
+    <script src="js/main.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r67/three.min.js"></script>
     <link href='https://fonts.googleapis.com/css?family=Sarala' rel='stylesheet' type='text/css'>
     <style type="text/css">
     * {
@@ -73,7 +74,8 @@
     </style>
 </head>
 <body>
-    <h2>TM495</h2>
+    <!-- <h2>TM495</h2> -->
+    <img src="res/TM495_title.png" />
 
     <div id="mainMenuState">
         <div id="playButton" class="button" onclick="if (clickType(event)===ClickType.LMB) enterState('game');">Play</div>
@@ -99,11 +101,8 @@
     <div id="gameState" style="display: none">
         <div id="backButton" class="button" onclick="Main.sm.enterPreviousState();">Back</div>
         <div id="gameWindow">
-            <canvas id="gameCanvas" width="720" height="480">
-                Your browser doesn't appear to support the
-                <code>&lt;canvas&gt;</code> element.
-            </canvas>
-        </div>
+            <div id="gameContent">
+            </div>
         <br />
         <span>
             WASD or arrow keys to move
