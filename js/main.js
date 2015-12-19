@@ -33,7 +33,7 @@ var Main = (function () {
         Main.sm.update(deltaTime);
         Main.sm.render();
     };
-    Main.VERSION = "0.013";
+    Main.VERSION = "0.015";
     Main.elapsed = 0.0;
     Main.lastDate = 0.0;
     Main.frames = 0;
@@ -49,7 +49,7 @@ var Renderer = (function () {
         this.height = 480;
         this.renderer = new THREE.WebGLRenderer({ alpha: true });
         this.renderer.setSize(this.width, this.height);
-        this.renderer.setClearColor(0xFFFFFF, 1);
+        this.renderer.setClearColor(0x07141b, 1);
         this.renderer.domElement.textContent = "Your browser doesn't appear to support the <code>&lt;canvas&gt;</code> element.";
         get('gameContent').appendChild(this.renderer.domElement);
         this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.1, 1000);
@@ -168,7 +168,7 @@ var GameState = (function (_super) {
         this.y = 0;
         get('gameState').style.display = "initial";
         this.scene = new THREE.Scene();
-        this.scene.add(new THREE.AmbientLight(new THREE.Color(0.9, 0.9, 0.9).getHex()));
+        this.scene.add(new THREE.AmbientLight(new THREE.Color(0.8, 0.8, 0.9).getHex()));
         this.level = new Level(45, 100, this.scene);
         this.player = new Player(this.level, this.scene);
     }
@@ -204,7 +204,9 @@ var Player = (function () {
         this.pivot.rotateX(Math.PI / 6.0);
         var planeGeometry = new THREE.PlaneGeometry(this.width, this.height);
         var planeMaterial = new THREE.MeshPhongMaterial({
-            map: THREE.ImageUtils.loadTexture("res/player1.png"), transparent: true
+            map: THREE.ImageUtils.loadTexture("res/player1.png"),
+            transparent: true,
+            shininess: 0.0
         });
         var mesh = new THREE.Mesh(planeGeometry, planeMaterial);
         mesh.position = new THREE.Vector3(0, 0, 2.5);
@@ -220,6 +222,8 @@ var Player = (function () {
             else {
                 this.maxVel = Player.MAX_V_WALK;
             }
+            var px = this.pivot.position.x;
+            var py = this.pivot.position.y;
             if (Keyboard.contains(Keyboard.KEYS.W) || Keyboard.contains(Keyboard.KEYS.UP)) {
                 this.pivot.position.y += this.maxVel * deltaTime;
             }
@@ -232,17 +236,48 @@ var Player = (function () {
             else if (Keyboard.contains(Keyboard.KEYS.D) || Keyboard.contains(Keyboard.KEYS.RIGHT)) {
                 this.pivot.position.x += this.maxVel * deltaTime;
             }
+            for (var i = 0; i < this.level.trees.length; ++i) {
+                var tree = this.level.trees[i];
+                var heightRadiusSizeThing = 3;
+                if (this.pivot.position.x - this.width / 2 > tree.pivot.position.x - 0.5 - tree.width / 2 &&
+                    this.pivot.position.x + this.width / 2 < tree.pivot.position.x + 0.5 + tree.width / 2 &&
+                    this.pivot.position.y > tree.pivot.position.y - heightRadiusSizeThing &&
+                    this.pivot.position.y < tree.pivot.position.y + heightRadiusSizeThing) {
+                    this.pivot.position.x = px;
+                    this.pivot.position.y = py;
+                }
+            }
             if (this.pivot.position.x - this.width / 2 < -this.level.width / 2) {
                 this.pivot.position.x = -this.level.width / 2 + this.width / 2;
             }
             if (this.pivot.position.x + this.width / 2 > this.level.width / 2) {
                 this.pivot.position.x = this.level.width / 2 - this.width / 2;
             }
-            if (this.pivot.position.y - this.height > this.level.height) {
+            if (this.pivot.position.y - this.height / 2 > this.level.height) {
                 this.pivot.position.y = this.level.height + this.height / 2;
             }
             if (this.pivot.position.y - this.height < 0) {
                 this.pivot.position.y = this.height;
+            }
+            if (Keyboard.contains(Keyboard.KEYS.C)) {
+                var closest = -1;
+                var closestDist = 5;
+                for (var t in this.level.trees) {
+                    var diff = new THREE.Vector3();
+                    diff.subVectors(this.level.trees[t].pivot.position, this.pivot.position);
+                    var dist = diff.length();
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closest = t;
+                    }
+                }
+                if (closest != -1 && this.level.trees[closest].chopped == false) {
+                    this.level.trees[closest].chopped = true;
+                    this.level.trees[closest].pivot.children[0].material = new THREE.MeshPhongMaterial({
+                        map: THREE.ImageUtils.loadTexture("res/trunk.png"),
+                        transparent: true
+                    });
+                }
             }
         }
     };
@@ -255,7 +290,12 @@ var Level = (function () {
         this.width = width;
         this.height = height;
         var planeGeometry = new THREE.PlaneGeometry(width, height);
-        var planeMaterial = new THREE.MeshBasicMaterial({ color: 0x332230, wireframe: false });
+        var grassTexture = THREE.ImageUtils.loadTexture("res/grass_diffuse.jpg");
+        grassTexture.wrapS = grassTexture.wrapT = THREE.RepeatWrapping;
+        grassTexture.repeat.set(3, 6);
+        var planeMaterial = new THREE.MeshPhongMaterial({
+            map: grassTexture
+        });
         this.mesh = new THREE.Mesh(planeGeometry, planeMaterial);
         this.mesh.position = new THREE.Vector3(0, this.height / 2, 0);
         scene.add(this.mesh);
@@ -264,7 +304,7 @@ var Level = (function () {
             var pos;
             do {
             } while (false);
-            pos = new Vec2(Math.random() * width - width / 2, Math.random() * height - height / 2);
+            pos = new Vec2(Math.random() * width - width / 2, Math.random() * height + 5);
             this.trees[i] = new Tree(pos.x, pos.y, new Vec2(48, 48), scene);
         }
     }
@@ -288,12 +328,16 @@ var Tree = (function () {
         this.pivot = new THREE.Object3D();
         this.pivot.position = new THREE.Vector3(x, y, 0);
         this.pivot.rotateX(Math.PI / 6.0);
-        var planeGeometry = new THREE.PlaneGeometry(3, 6);
+        this.width = 3;
+        this.height = 6;
+        var planeGeometry = new THREE.PlaneGeometry(this.width, this.height);
         var planeMaterial = new THREE.MeshPhongMaterial({
-            map: THREE.ImageUtils.loadTexture("res/tree.png"), transparent: true
+            map: THREE.ImageUtils.loadTexture("res/tree.png"),
+            transparent: true,
+            shininess: 0.0
         });
         var mesh = new THREE.Mesh(planeGeometry, planeMaterial);
-        mesh.position.z = 3;
+        mesh.position.z = 1.85;
         this.pivot.add(mesh);
         scene.add(this.pivot);
         this.size = size;
