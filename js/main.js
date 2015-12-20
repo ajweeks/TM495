@@ -51,6 +51,7 @@ var Renderer = (function () {
         this.renderer.setSize(this.width, this.height);
         this.renderer.setClearColor(0x07141b, 1);
         this.renderer.domElement.textContent = "Your browser doesn't appear to support the <code>&lt;canvas&gt;</code> element.";
+        this.renderer.domElement.id = "gameCanvas";
         get('gameContent').appendChild(this.renderer.domElement);
         this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.1, 1000);
         this.camera.position = new THREE.Vector3(0, -6, 20);
@@ -199,22 +200,23 @@ var Player = (function () {
         this.level = level;
         this.width = 2.5;
         this.height = 5;
+        this.wood = 0;
+        get('woodInfoTab').innerHTML = "Wood: " + this.wood;
         this.pivot = new THREE.Object3D();
         this.pivot.position = new THREE.Vector3(0, this.height, 0);
         this.pivot.rotateX(Math.PI / 6.0);
-        var planeGeometry = new THREE.PlaneGeometry(this.width, this.height);
-        var planeMaterial = new THREE.MeshPhongMaterial({
-            map: THREE.ImageUtils.loadTexture("res/player1.png"),
-            transparent: true,
-            shininess: 0.0
-        });
-        var mesh = new THREE.Mesh(planeGeometry, planeMaterial);
+        var playerTexture = THREE.ImageUtils.loadTexture("res/player.png");
+        this.animator = new TextureAnimator(playerTexture, 3, 1, 3, 75);
+        var playerMaterial = new THREE.MeshBasicMaterial({ map: playerTexture, transparent: true });
+        var playerGeometry = new THREE.PlaneGeometry(this.width, this.height, 1, 1);
+        var mesh = new THREE.Mesh(playerGeometry, playerMaterial);
         mesh.position = new THREE.Vector3(0, 0, 2.5);
         this.pivot.add(mesh);
         scene.add(this.pivot);
         this.maxVel = Player.MAX_V_WALK;
     }
     Player.prototype.update = function (deltaTime) {
+        this.animator.update(deltaTime);
         if (Keyboard.keysDown.length > 0) {
             if (Keyboard.contains(Keyboard.KEYS.SHIFT)) {
                 this.maxVel = Player.MAX_V_RUN;
@@ -272,6 +274,11 @@ var Player = (function () {
                     }
                 }
                 if (closest != -1 && this.level.trees[closest].chopped == false) {
+                    var rand = Math.floor(Math.random() * 3);
+                    Sound.play(rand == 0 ? "hit2" : (rand == 1 ? "hit3" : "hit4"));
+                    console.log(rand);
+                    this.wood += this.level.trees[closest].woodValue;
+                    get('woodInfoTab').innerHTML = "Wood: " + this.wood;
                     this.level.trees[closest].chopped = true;
                     this.level.trees[closest].pivot.children[0].material = new THREE.MeshPhongMaterial({
                         map: THREE.ImageUtils.loadTexture("res/trunk.png"),
@@ -285,6 +292,30 @@ var Player = (function () {
     Player.MAX_V_RUN = 0.025;
     return Player;
 })();
+function TextureAnimator(texture, tilesHoriz, tilesVert, numTiles, tileDispDuration) {
+    this.tilesHorizontal = tilesHoriz;
+    this.tilesVertical = tilesVert;
+    this.numberOfTiles = numTiles;
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(1 / this.tilesHorizontal, 1 / this.tilesVertical);
+    this.tileDisplayDuration = tileDispDuration;
+    this.currentDisplayTime = 0;
+    this.currentTile = 0;
+    this.update = function (milliSec) {
+        this.currentDisplayTime += milliSec;
+        while (this.currentDisplayTime > this.tileDisplayDuration) {
+            this.currentDisplayTime -= this.tileDisplayDuration;
+            this.currentTile++;
+            if (this.currentTile == this.numberOfTiles) {
+                this.currentTile = 0;
+            }
+            var currentColumn = this.currentTile % this.tilesHorizontal;
+            texture.offset.x = currentColumn / this.tilesHorizontal;
+            var currentRow = Math.floor(this.currentTile / this.tilesHorizontal);
+            texture.offset.y = currentRow / this.tilesVertical;
+        }
+    };
+}
 var Level = (function () {
     function Level(width, height, scene) {
         this.width = width;
@@ -325,11 +356,13 @@ var Level = (function () {
 })();
 var Tree = (function () {
     function Tree(x, y, size, scene) {
+        this.chopped = false;
         this.pivot = new THREE.Object3D();
         this.pivot.position = new THREE.Vector3(x, y, 0);
         this.pivot.rotateX(Math.PI / 6.0);
         this.width = 3;
         this.height = 6;
+        this.woodValue = this.height;
         var planeGeometry = new THREE.PlaneGeometry(this.width, this.height);
         var planeMaterial = new THREE.MeshPhongMaterial({
             map: THREE.ImageUtils.loadTexture("res/tree.png"),
@@ -415,6 +448,24 @@ var Mouse = (function () {
     Mouse.mdown = false;
     Mouse.rdown = false;
     return Mouse;
+})();
+var Sound = (function () {
+    function Sound() {
+    }
+    Sound.toggleMute = function () {
+        Sound.muted = !Sound.muted;
+    };
+    Sound.play = function (sound) {
+        if (Sound.muted)
+            return;
+        get(sound).currentTime = 0;
+        get(sound).play();
+    };
+    Sound.hit2 = 'hit2';
+    Sound.hit3 = 'hit3';
+    Sound.hit4 = 'hit4';
+    Sound.muted = false;
+    return Sound;
 })();
 var Keyboard = (function () {
     function Keyboard() {
