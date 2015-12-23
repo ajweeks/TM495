@@ -1,4 +1,3 @@
-// Copyright AJ Weeks 2015
 
 function get(what: string): HTMLElement {
     return document.getElementById(what);
@@ -7,7 +6,7 @@ function get(what: string): HTMLElement {
 // TODO(AJ): see if we can make Main not so static, that's probably a bad thing, right?
 class Main {
 
-    static VERSION = "0.015";
+    static VERSION = "0.016";
 
     static renderer: Renderer;
     static sm: StateManager;
@@ -20,8 +19,11 @@ class Main {
     init(): void {
         console.log("TM495 v" + Main.VERSION + " by AJ Weeks");
 
+        // NOTE(AJ): load all images
         Resource.loadAll();
 
+        //NOTE(AJ): load all sounds
+        Sound.init();
 
         Main.sm = new StateManager();
         Main.renderer = new Renderer();
@@ -221,8 +223,6 @@ class AboutState extends BasicState {
 
 class GameState extends BasicState {
 
-    x: number = 0;
-    y: number = 0;
     player: Player;
     level: Level;
     scene: THREE.Scene;
@@ -254,9 +254,23 @@ class GameState extends BasicState {
 
     update(deltaTime: number): void {
         this.player.update(deltaTime);
+        this.updateCamera();
+    }
 
-        Main.renderer.camera.position.x = this.player.pivot.position.x;
-        Main.renderer.camera.position.y = this.player.pivot.position.y - 5;
+    updateCamera(): void {
+        var playerX = this.player.pivot.position.x;
+        var playerY = this.player.pivot.position.y;
+
+
+        // TODO(AJ): Don't allow the player to move off the screen
+        // how far away from the camera is the player?
+        var deltaY = playerY - Main.renderer.camera.position.y;
+        if (deltaY > 8) {
+            Main.renderer.camera.position.y = playerY - 8;
+        } else if (deltaY < 3) {
+            Main.renderer.camera.position.y = playerY - 3;
+        }
+
     }
 
     render(): void {
@@ -272,13 +286,15 @@ class Player {
     height: number;
 
     pivot: THREE.Object3D;
-    animator;
+    animator: SpriteAnimator;
     //mesh: THREE.Mesh;
     maxVel: number;
 
     wood: number;
 
     level: Level;
+
+    material: THREE.MeshBasicMaterial;
 
     constructor(level: Level, scene: THREE.Scene) {
         this.level = level;
@@ -292,18 +308,13 @@ class Player {
         this.pivot.position = new THREE.Vector3(0, this.height, 0);
         this.pivot.rotateX(Math.PI / 6.0);
 
-        var playerTexture = THREE.ImageUtils.loadTexture("res/player.png");
-    	this.animator = new TextureAnimator(playerTexture, 3, 1, 3, 75); // texture, #horiz, #vert, #total, duration.
-    	var playerMaterial = new THREE.MeshBasicMaterial( { map: playerTexture, transparent: true } );
-        // var planeMaterial = new THREE.MeshPhongMaterial(
-        //     {
-        //         map: THREE.ImageUtils.loadTexture("res/player1.png"),
-        //         transparent: true,
-        //         shininess: 0.0
-        //     }
-        // );
+    	var textureAnimators = new Array<TextureAnimator>(2);
+        textureAnimators[0] = (new TextureAnimator(Resource.playerTexture, 3, 1, 3, 500));
+        textureAnimators[1] = (new TextureAnimator(Resource.playerTexture, 3, 1, 3, 75));
+        this.material = new THREE.MeshBasicMaterial( { map: textureAnimators[0].texture, transparent: true } );
+        this.animator = new SpriteAnimator(textureAnimators, this.material);
         var playerGeometry = new THREE.PlaneGeometry(this.width, this.height, 1, 1);
-        var mesh = new THREE.Mesh(playerGeometry, playerMaterial);
+        var mesh = new THREE.Mesh(playerGeometry, this.material);
         mesh.position = new THREE.Vector3(0, 0, 2.5);
 
         this.pivot.add(mesh);
@@ -314,11 +325,14 @@ class Player {
 
     update(deltaTime: number): void {
         this.animator.update(deltaTime);
+
         if (Keyboard.keysDown.length > 0) {
             if (Keyboard.contains(Keyboard.KEYS.SHIFT)) {
                 this.maxVel = Player.MAX_V_RUN;
+                this.animator.switchAnimation(1);
             } else {
                 this.maxVel = Player.MAX_V_WALK;
+                this.animator.switchAnimation(0);
             }
 
             var px = this.pivot.position.x;
@@ -335,19 +349,40 @@ class Player {
                 this.pivot.position.x += this.maxVel * deltaTime;
             }
 
-            for (var i = 0; i < this.level.trees.length; ++i) {
-                var tree = this.level.trees[i];
-                var heightRadiusSizeThing = 3;
-                // FIXME(AJ): This collision detection is comple garbage, pls fix it soon
-                if (this.pivot.position.x - this.width / 2 > tree.pivot.position.x - 0.5 - tree.width / 2 &&
-                    this.pivot.position.x + this.width / 2 < tree.pivot.position.x + 0.5 + tree.width / 2 &&
-                    this.pivot.position.y > tree.pivot.position.y - heightRadiusSizeThing &&
-                    this.pivot.position.y < tree.pivot.position.y + heightRadiusSizeThing) {
-                        this.pivot.position.x = px;
-                        this.pivot.position.y = py;
-                }
+            if (px == this.pivot.position.x && py == this.pivot.position.y) { // we didn't move, possibly walking against a wall or something
+                this.animator.switchAnimation(0); // should be playing the idle animation
             }
 
+            // TODO(AJ): The collision detection works well, but it could possibly be the cause of some bottlenecks,
+            // check if there are any obvious ways to improve performace
+            var nudgeMultiplyer = this.maxVel * 2;
+            var tree = this.level.collides(this.pivot.position.x, this.pivot.position.y, this.width, this.height);
+            if (tree !== null) { // Collision!
+                if (this.level.collides(this.pivot.position.x, py, this.width, this.height) === null) { // the new y value is the problem
+                    if (this.pivot.position.x < tree.pivot.position.x) { // check what half of the object we're on
+                        // FIXME(AJ): What was I going to do here again?
+                        // if (this.pivot.position.x)
+                            this.pivot.position.x -= this.maxVel * deltaTime;
+                        //}
+                    } else {
+                        // if (this.level.collides(this.pivot.position.x + deltaTime * nudgeMultiplyer, this.pivot.position.y, this.width, this.height) === null) {
+                            this.pivot.position.x += this.maxVel * deltaTime;
+                        //}
+                    }
+
+                    this.pivot.position.y = py;
+                } else if (this.level.collides(px, this.pivot.position.y, this.width, this.height) === null) { // the new x value is the problem
+                    if (this.pivot.position.y < tree.pivot.position.y) {
+                        this.pivot.position.y -= this.maxVel * deltaTime;
+                    } else {
+                        if (this.pivot.position.y > tree.pivot.position.y) {
+                            this.pivot.position.y += this.maxVel * deltaTime;
+                        }
+                    }
+
+                    this.pivot.position.x = px;
+                }
+            }
 
             if (this.pivot.position.x - this.width / 2 < -this.level.width / 2) {
                 this.pivot.position.x = -this.level.width / 2 + this.width / 2;
@@ -379,24 +414,18 @@ class Player {
                 }
                 if (closest != -1 && this.level.trees[closest].chopped == false) {
                     var rand = Math.floor(Math.random() * 3);
-                    Sound.play(rand == 0 ? "hit2" : (rand == 1 ? "hit3" : "hit4"));
-                    console.log(rand);
+                    Sound.play(rand == 0 ? Sound.hit2 : (rand == 1 ? Sound.hit3 : Sound.hit4));
 
                     this.wood += this.level.trees[closest].woodValue;
                     get('woodInfoTab').innerHTML = "Wood: " + this.wood;
 
                     this.level.trees[closest].chopped = true;
 
-                    //this.level.trees[closest].pivot.remove(this.level.trees[closest].pivot.children[0]);
-
-                    // var mat = new THREE.MeshPhongMaterial({
-                    //     map: THREE.ImageUtils.loadTexture("res/trunk.png"),
-                    //     transparent: true
-                    // });
-                    // var geometry = new THREE.PlaneGeometry(3, 3);
-                    //this.level.trees[closest].pivot.add(new THREE.Mesh(geometry, mat));
-
-                    //this.level.trees[closest].pivot.children[0] = new THREE.Mesh(geometry, mat);
+                    // TODO(AJ): Figure out how to change the size of tree planes once they have been
+                    // chopped (probably requires the mesh to be removed and another one added)
+                    // For now, just use a trunk texture that is the same size as the tree texture
+                    // This does not work:
+                    // (<THREE.Mesh>this.level.trees[closest].pivot.children[0]).geometry = new THREE.PlaneGeometry(2,2);
 
                     (<THREE.Mesh>this.level.trees[closest].pivot.children[0]).material = new THREE.MeshPhongMaterial({
                         map: THREE.ImageUtils.loadTexture("res/trunk.png"),
@@ -407,45 +436,6 @@ class Player {
             }
         }
     }
-}
-
-/* Slightly modified version of Lee Stemkoski's texture animator
-   (http://stemkoski.github.io/Three.js/Texture-Animation.html) */
-function TextureAnimator(texture, tilesHoriz, tilesVert, numTiles, tileDispDuration)
-{
-    // note: texture passed by reference, will be updated by the update function.
-
-    this.tilesHorizontal = tilesHoriz;
-    this.tilesVertical = tilesVert;
-    // numberOfTiles is usually equal to tilesHoriz * tilesVert, but not necessarily,
-    // if there at blank tiles at the bottom of the spritesheet.
-    this.numberOfTiles = numTiles;
-    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set( 1 / this.tilesHorizontal, 1 / this.tilesVertical );
-
-    // How long should each image be displayed?
-    this.tileDisplayDuration = tileDispDuration;
-
-    // How long has the current image been displayed?
-    this.currentDisplayTime = 0;
-
-    // Which image is currently being displayed?
-    this.currentTile = 0;
-
-    this.update = function(milliSec: number): void {
-        this.currentDisplayTime += milliSec;
-        while (this.currentDisplayTime > this.tileDisplayDuration) {
-            this.currentDisplayTime -= this.tileDisplayDuration;
-            this.currentTile++;
-            if (this.currentTile == this.numberOfTiles) {
-                this.currentTile = 0;
-            }
-            var currentColumn = this.currentTile % this.tilesHorizontal;
-            texture.offset.x = currentColumn / this.tilesHorizontal;
-            var currentRow = Math.floor( this.currentTile / this.tilesHorizontal );
-            texture.offset.y = currentRow / this.tilesVertical;
-        }
-    };
 }
 
 class Level {
@@ -460,12 +450,8 @@ class Level {
         this.height = height;
 
         var planeGeometry = new THREE.PlaneGeometry(width, height);
-        // var planeMaterial = new THREE.MeshBasicMaterial({ color: 0x332230, wireframe: false });
-        var grassTexture = THREE.ImageUtils.loadTexture("res/grass_diffuse.jpg");
-        grassTexture.wrapS = grassTexture.wrapT = THREE.RepeatWrapping;
-        grassTexture.repeat.set(3, 6);
         var planeMaterial = new THREE.MeshPhongMaterial({
-            map: grassTexture
+            map: Resource.grassTexture
         });
         this.mesh = new THREE.Mesh(planeGeometry, planeMaterial);
         this.mesh.position = new THREE.Vector3(0, this.height / 2, 0);
@@ -473,16 +459,30 @@ class Level {
 
         this.trees = new Array<Tree>(50);
         for (var i = 0; i < this.trees.length; ++i) {
-            var pos: Vec2;
+            var pos: THREE.Vector2;
             do {
             } while (false);
-            pos = new Vec2(Math.random() * width - width / 2, Math.random() * height + 5);
+            pos = new THREE.Vector2(Math.random() * width - width / 2, Math.random() * height + 5);
 
-            this.trees[i] = new Tree(pos.x, pos.y, new Vec2(48, 48), scene);
+            this.trees[i] = new Tree(pos.x, pos.y, new THREE.Vector2(48, 48), scene);
         }
     }
 
-    static overlaps(pos: Vec2, trees: Tree[], width: number, height: number): boolean {
+    collides(x: number, y: number, width: number, height: number): Tree {
+        var trunkRadius = 1.0;
+        for (var t in this.trees) {
+            var tree = this.trees[t];
+            if (x - width / 2 > tree.pivot.position.x - trunkRadius - tree.width / 2 &&
+                x + width / 2 < tree.pivot.position.x + trunkRadius + tree.width / 2 &&
+                y > tree.pivot.position.y - trunkRadius &&
+                y < tree.pivot.position.y + trunkRadius) {
+                    return tree;
+                }
+        }
+        return null;
+    }
+
+    static overlaps(pos: THREE.Vector2, trees: Tree[], width: number, height: number): boolean {
         for (var i = 0; i < trees.length; ++i) {
             if (!trees[i]) continue; // skip the undefined trunks
 
@@ -500,34 +500,35 @@ class Level {
 class Tree {
 
     pivot: THREE.Object3D;
-    size: Vec2;
+    size: THREE.Vector2;
     chopped: boolean = false;
     width: number;
     height: number;
 
     woodValue: number; // how many wood units this tree drops upon being cut down
 
-    constructor(x: number, y: number, size: Vec2, scene: THREE.Scene) {
+    constructor(x: number, y: number, size: THREE.Vector2, scene: THREE.Scene) {
 
         this.pivot = new THREE.Object3D();
         this.pivot.position = new THREE.Vector3(x, y, 0);
         this.pivot.rotateX(Math.PI / 6.0);
 
-        this.width = 3;
-        this.height = 6;
+        this.width = 5;
+        this.height = 7 + Math.floor(Math.random() * 3);
         this.woodValue = this.height;
         // NOTE(AJ): if we want both sides of the tree plane to render for some reason
-        // we can set 'side: THREE.DoubleSide' in the Material
+        // we can set { side: THREE.DoubleSide } in the Material properties
         var planeGeometry = new THREE.PlaneGeometry(this.width, this.height);
         var planeMaterial = new THREE.MeshPhongMaterial(
             {
-                map: THREE.ImageUtils.loadTexture("res/tree.png"),
+                map: Resource.treeTexture,
                 transparent: true,
                 shininess: 0.0
             }
         );
         var mesh = new THREE.Mesh(planeGeometry, planeMaterial);
-        mesh.position.z = 1.85;
+        mesh.position.z = 2.35; // TODO(AJ): Find out how to calculate this vaue, or even better - how
+        // to not use it at all
 
         this.pivot.add(mesh);
         scene.add(this.pivot);
@@ -541,60 +542,123 @@ class Tree {
     }
 }
 
-class Vec2 {
-    x: number;
-    y: number;
+class SpriteAnimator {
 
-    constructor(x = 0, y = 0) {
-        this.x = x;
-        this.y = y;
+    textureAnimators: TextureAnimator[]; // one texture animator for each animation
+    // eg: walking, running, chopping
+    currentAnimationIndex: number;
+    material: THREE.MeshBasicMaterial; // a reference to the matrial the textures will be applied on
+    // (Not future proof, as once we want more than one material to change, this will be to be an array, or
+    // something like that anyway)
+
+    constructor(textureAnimators: TextureAnimator[], material: THREE.MeshBasicMaterial, currentAnimationIndex = 0) {
+        this.textureAnimators = textureAnimators;
+        this.material = material;
+        this.currentAnimationIndex = currentAnimationIndex;
     }
 
-    // TODO(AJ): implement dot, cross, mult, etc. (if necessary)
+    update(deltaTime: number): void {
+        this.textureAnimators[this.currentAnimationIndex].update(deltaTime);
+    }
+
+    switchAnimation(newAnimationIndex: number): void {
+        this.currentAnimationIndex = newAnimationIndex;
+        this.material.map = this.textureAnimators[this.currentAnimationIndex].texture;
+    }
+
 }
 
-// Note(AJ): A class to store any resources the game uses
-// I've never tried this method before, we'll see if it's any good
+/* Slightly modified version of Lee Stemkoski's texture animator
+   http://stemkoski.github.io/Three.js/Texture-Animation.html */
+class TextureAnimator {
+
+    texture: THREE.Texture;
+
+    tileCountX: number; // number of tiles horizontally
+    tileCountY: number; // number of tiles vertically
+
+    /* numberOfTiles is usually equal to tileCountX * tileCountY, but not necessarily:
+       if there at blank tiles at the bottom of the spritesheet. */
+    numberOfTiles: number;
+
+    msPerFrame: number;
+    msElapsedThisFrame: number;
+    currentTileIndex: number;
+
+    constructor(texture: THREE.Texture, tileCountX: number, tileCountY: number,
+        numberOfTiles: number, msPerFrame: number) {
+        // note: texture passed by reference, will be updated by the update function.
+        this.texture = texture;
+
+        this.tileCountX = tileCountX;
+        this.tileCountY = tileCountY;
+        this.numberOfTiles = numberOfTiles;
+
+        this.texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+        this.texture.repeat.set( 1 / this.tileCountX, 1 / this.tileCountY );
+
+        this.msPerFrame = msPerFrame;
+
+        this.msElapsedThisFrame = 0;
+        this.currentTileIndex = 0;
+    }
+
+    update(deltaTime: number): void {
+        this.msElapsedThisFrame += deltaTime;
+        while (this.msElapsedThisFrame > this.msPerFrame) {
+            this.msElapsedThisFrame -= this.msPerFrame;
+            this.currentTileIndex++;
+            this.currentTileIndex %= this.numberOfTiles;
+
+            var currentColumn = this.currentTileIndex % this.tileCountX;
+            this.texture.offset.x = currentColumn / this.tileCountX;
+
+            var currentRow = Math.floor(this.currentTileIndex / this.tileCountX);
+            this.texture.offset.y = currentRow / this.tileCountY;
+        }
+    }
+}
+
 class Resource {
 
-    static player: SpriteSheet;
-    static trunk: HTMLImageElement;
-    static tree: HTMLImageElement;
-    static deciduous_sapling: HTMLImageElement;
-    static coninferous_sapling: HTMLImageElement;
+    static playerTexture: THREE.Texture;
+    // static playerRunningTexture: THREE.Texture;
+    static grassTexture: THREE.Texture;
+    static trunkTexture: THREE.Texture;
+    static treeTexture: THREE.Texture;
+    // static deciduous_sapling: HTMLImageElement;
+    // static coninferous_sapling: HTMLImageElement;
+
+    static textureLoader: THREE.TextureLoader;
 
     static loadAll() {
-        Resource.player = new SpriteSheet("res/player.png", 64, 128);
+        Resource.textureLoader = new THREE.TextureLoader();
 
-        Resource.trunk = new Image();
-        Resource.trunk.src = "res/trunk.png";
+        // TODO(AJ): Check if textureLoader is the preferred way of loading textures
+        // Seems to work for now at least!
+        Resource.textureLoader.load("res/player.png", function(tex) {
+            Resource.playerTexture = tex;
+        });
 
-        Resource.tree = new Image();
-        Resource.tree.src = "res/tree.png";
+        // Resource.textureLoader.load("res/player_running.png", function(tex) {
+        //     Resource.playerRunningTexture = tex;
+        // });
 
-        Resource.deciduous_sapling = new Image();
-        Resource.deciduous_sapling.src = "res/deciduous_sapling.png";
+        Resource.textureLoader.load("res/grass_diffuse.jpg", function(tex) {
+            Resource.grassTexture = tex;
+            Resource.grassTexture.wrapS = Resource.grassTexture.wrapT = THREE.RepeatWrapping;
+            Resource.grassTexture.repeat.set(3, 6);
+        });
 
-        Resource.coninferous_sapling = new Image();
-        Resource.coninferous_sapling.src = "res/coniferous_sapling.png";
-    }
-}
+        Resource.textureLoader.load("res/tree.png", function(tex) {
+            Resource.treeTexture = tex;
+        });
 
-class SpriteSheet {
+        Resource.textureLoader.load("res/trunk.png", function(tex) {
+            Resource.trunkTexture = tex;
+        });
 
-    // Size of each frame
-    frameWidth: number;
-    frameHeight: number;
-
-    image: HTMLImageElement;
-    // totalFrameCount: number;
-
-    constructor(src: string, frameWidth: number, frameHeight: number) {
-        this.image = new Image();
-        this.image.src = src;
-
-        this.frameWidth = frameWidth;
-        this.frameHeight = frameHeight;
+        console.log("All textures loaded!");
     }
 }
 
@@ -632,26 +696,6 @@ class Mouse {
     }
 }
 
-class Sound {
-
-    static hit2 = 'hit2';
-    static hit3 = 'hit3';
-    static hit4 = 'hit4';
-
-    static muted = false;
-
-    static toggleMute(): void {
-        Sound.muted = !Sound.muted;
-    }
-
-    static play(sound: string): void {
-        if (Sound.muted) return;
-        (<HTMLAudioElement>get(sound)).currentTime = 0;
-        (<HTMLAudioElement>get(sound)).play();
-    }
-
-}
-
 class Keyboard {
 
     static KEYS = {
@@ -667,6 +711,8 @@ class Keyboard {
 
     static onKeyDown(event: KeyboardEvent) {
         if (event.altKey) return false; // let's not deal with this for now
+
+        Controller.onKeyDown(event.keyCode);
 
         if (!Keyboard.contains(event.keyCode)) {
             Keyboard.keysDown.push(event.keyCode);
@@ -692,12 +738,114 @@ class Keyboard {
     }
 
     static onKeyUp(event: KeyboardEvent) {
+
+        Controller.onKeyDown(event.keyCode);
+
         for (var i in Keyboard.keysDown) {
             if (Keyboard.keysDown[i] === event.keyCode) {
                 Keyboard.keysDown.splice(i, 1);
                 // don't break after the item has been found, in case it's in there more than once
             }
         }
+    }
+}
+
+enum INPUT {
+    UP, DOWN, LEFT, RIGHT, JUMP
+}
+
+class KeyboardInput {
+    down: boolean = false; // is down
+    pressed: boolean = false; // is down and wasn't down last frame
+    ticksDown: number = -1; // how long it has been down for
+
+    keyCode: number; // which key code
+
+    constructor(keyCode: number) {
+        this.keyCode = keyCode;
+    }
+
+    // @overide Input
+    onKeyDown(): void {
+        if (this.down == false) { // was not down last frame
+            this.pressed = true;
+            this.ticksDown = 1;
+        } else {
+            this.pressed = false;
+            this.ticksDown++;
+        }
+    }
+
+    onKeyUp(): void {
+        this.down = false;
+        this.pressed = false;
+        this.ticksDown = -1;
+    }
+}
+
+/**
+    Used to abstract away which keys map to which actions
+        -> The Player class code deals with this interface,
+        -> This interface deals with the Keyboard class
+*/
+class Controller {
+
+    static inputs: KeyboardInput[];
+
+    constructor() {
+        Controller.inputs = new Array<KeyboardInput>();
+        Controller.inputs.push(new KeyboardInput(Keyboard.KEYS.W));
+    }
+
+    static onKeyDown(keyCode: number): void {
+        for (var i in Controller.inputs) {
+            if (Controller.inputs[i].keyCode == keyCode) {
+                Controller.inputs[i].onKeyDown();
+            }
+        }
+    }
+
+    static onKeyUp(keyCode: number): void {
+        for (var i in Controller.inputs) {
+            if (Controller.inputs[i].keyCode == keyCode) {
+                Controller.inputs[i].onKeyUp();
+            }
+        }
+    }
+
+}
+
+class Sound {
+
+    static hit2: HTMLAudioElement;
+    static hit3: HTMLAudioElement;
+    static hit4 : HTMLAudioElement;
+
+    static muted: boolean = false;
+    static volume: number = 0.5;
+    static volumeSlider: HTMLInputElement;
+
+    static init() {
+        Sound.hit2 = <HTMLAudioElement>get('hit2');
+        Sound.hit3 = <HTMLAudioElement>get('hit3');
+        Sound.hit4 = <HTMLAudioElement>get('hit4');
+
+        Sound.volumeSlider = <HTMLInputElement>get('volumeSlider');
+    }
+
+    static changeVolume() {
+        Sound.volume = Number(Sound.volumeSlider.value) / 100;
+    }
+
+    static toggleMute(): void {
+        Sound.muted = !Sound.muted;
+    }
+
+    static play(sound: HTMLAudioElement): void {
+        if (Sound.muted) return;
+        sound.volume = Sound.volume;
+        sound.currentTime = 0;
+        sound.play();
     }
 }
 

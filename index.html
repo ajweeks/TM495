@@ -6,7 +6,9 @@
     <meta name="keywords" content="TM495,2D,lumberjack,game,javascript,typescript,webgame,online,free,fun">
     <meta name="description" content="A free online 2D lumberjack game in early Alpha by AJ Weeks">
     <script src="js/main.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r67/three.min.js"></script>
+    <!-- TODO(AJ): use cdn version of three once I have access to internet again -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r67/three.min.js"></script> -->
+    <script src="js/three.min.js"></script>
     <link href='https://fonts.googleapis.com/css?family=Sarala' rel='stylesheet' type='text/css'>
     <link rel="icon" type="image/png" href="favicons/favicon-32x32.png" sizes="32x32">
     <link rel="icon" type="image/png" href="favicons/android-chrome-192x192.png" sizes="192x192">
@@ -130,6 +132,10 @@
         <div id="gameplayTabs">
             <div id="woodInfoTab" class="gameInfo">Wood: 0</div>
             <div id="paperInfoTab" class="gameInfo">Paper: 0</div>
+            <div id="volume" style="display: inline-block">
+                <input id="volumeSlider" type="range" value="75" style="display: block; margin-left: 92px;" onchange="Sound.changeVolume()"/>
+                <span style="display: block; font-size: 22px; margin-left: 125px;">volume</span>
+            </div>
         </div>
         <br />
         <span>
@@ -138,8 +144,6 @@
             Shift to sprint
         </span>
     </div>
-
-
     <footer>
         AJ Weeks 2015
     </footer>
