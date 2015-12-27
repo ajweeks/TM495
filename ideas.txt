@@ -74,13 +74,13 @@ __Upgrades__
   -Hair cut
   -Tattoos
 
-Powerups (awarded by chopping down special trees?)
+_Powerups_ (awarded by chopping down special trees?)
   -Super strength:
     -Ability to cut down any tree with one hit
   -Speed:
     -Ability to walk around very quickly
 
-Downgrades
+_Downgrades_
   -Rotten Tree
     -Causes fatigue (both walking speed and chopping speed)
   -Bug infestation
@@ -92,3 +92,8 @@ Downgrades
       -Fazed - can't move for a period of time
       -Permanent disability (for remainder of that game)
       -Big trees can cause death (game over, lose some credits?)
+
+_Misc_
+  -Fullscreen option
+  -Controller support
+  -Resource packs

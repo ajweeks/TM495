@@ -6,7 +6,7 @@ function get(what: string): HTMLElement {
 // TODO(AJ): see if we can make Main not so static, that's probably a bad thing, right?
 class Main {
 
-    static VERSION = "0.016";
+    static VERSION = "0.017";
 
     static renderer: Renderer;
     static sm: StateManager;
@@ -56,6 +56,7 @@ class Main {
         Main.sm.update(deltaTime);
         Main.sm.render();
     }
+
 }
 
 class Renderer {
@@ -92,9 +93,6 @@ class Renderer {
         this.previousTime = now;
     }
 
-    update() {
-
-    }
 }
 
 /** A class used to keep track of what state we're in currently
@@ -226,6 +224,8 @@ class GameState extends BasicState {
     player: Player;
     level: Level;
     scene: THREE.Scene;
+    entityManager: EntityManager;
+    cameraAcceleration: THREE.Vector2; // How quickly the camera can change direction
 
     constructor(sm: StateManager) {
         super(STATE_TYPE.GAME, sm);
@@ -235,8 +235,13 @@ class GameState extends BasicState {
 
         this.scene.add(new THREE.AmbientLight(new THREE.Color(0.8, 0.8, 0.9).getHex()));
 
-        this.level = new Level(45, 100, this.scene);
-        this.player = new Player(this.level, this.scene);
+        this.level = new Level(45, 450, this.scene);
+        this.player = new Player(this.level, this.scene, this);
+        this.cameraAcceleration = new THREE.Vector2(0, 0.022);
+        Main.renderer.camera.position.x = this.player.pivot.position.x;
+        Main.renderer.camera.position.y = this.player.pivot.position.y - this.player.height;
+
+        this.entityManager = new EntityManager(this.scene);
     }
 
     hide(): void {
@@ -254,28 +259,29 @@ class GameState extends BasicState {
 
     update(deltaTime: number): void {
         this.player.update(deltaTime);
-        this.updateCamera();
+        this.updateCamera(deltaTime);
+        this.entityManager.update(deltaTime);
     }
 
-    updateCamera(): void {
+    updateCamera(deltaTime: number): void {
         var playerX = this.player.pivot.position.x;
         var playerY = this.player.pivot.position.y;
 
-
         // TODO(AJ): Don't allow the player to move off the screen
-        // how far away from the camera is the player?
-        var deltaY = playerY - Main.renderer.camera.position.y;
-        if (deltaY > 8) {
-            Main.renderer.camera.position.y = playerY - 8;
-        } else if (deltaY < 3) {
-            Main.renderer.camera.position.y = playerY - 3;
-        }
 
+        var deltaY = playerY - Main.renderer.camera.position.y - 7;
+        var speedY = (deltaY/3 * this.cameraAcceleration.y) * deltaTime;
+        Main.renderer.camera.position.y += speedY;
+        // Main.renderer.camera.position.y += Math.min((playerY - 5) - Main.renderer.camera.position.y, speedY);
     }
 
     render(): void {
         Main.renderer.render(this.scene);
     }
+}
+
+enum AXE {
+    STEEL, GOLD
 }
 
 class Player {
@@ -290,14 +296,24 @@ class Player {
     //mesh: THREE.Mesh;
     maxVel: number;
 
+    axe: AXE = AXE.STEEL;
+
     wood: number;
+    choppingTime: number = -1; // how many ticks we have to wait to chop again! (or -1)
 
     level: Level;
+    gameState: GameState;
 
     material: THREE.MeshBasicMaterial;
+    weaponMaterial: THREE.MeshBasicMaterial;
 
-    constructor(level: Level, scene: THREE.Scene) {
+    static IDLE_ANIM = 0;
+    static WALK_ANIM = 1;
+    static RUN_ANIM = 2;
+
+    constructor(level: Level, scene: THREE.Scene, gameState: GameState) {
         this.level = level;
+        this.gameState = gameState;
         this.width = 2.5;
         this.height = 5;
 
@@ -308,16 +324,24 @@ class Player {
         this.pivot.position = new THREE.Vector3(0, this.height, 0);
         this.pivot.rotateX(Math.PI / 6.0);
 
-    	var textureAnimators = new Array<TextureAnimator>(2);
-        textureAnimators[0] = (new TextureAnimator(Resource.playerTexture, 3, 1, 3, 500));
-        textureAnimators[1] = (new TextureAnimator(Resource.playerTexture, 3, 1, 3, 75));
-        this.material = new THREE.MeshBasicMaterial( { map: textureAnimators[0].texture, transparent: true } );
+    	var textureAnimators = new Array<TextureAnimator>();
+        textureAnimators.push(new TextureAnimator(Resource.playerIdleTexture, 2, 1, 2, 480));
+        textureAnimators.push(new TextureAnimator(Resource.playerWalkingTexture, 4, 1, 4, 160));
+        textureAnimators.push(new TextureAnimator(Resource.playerRunningTexture, 4, 1, 4, 130));
+        this.material = new THREE.MeshBasicMaterial( { map: textureAnimators[Player.IDLE_ANIM].texture, transparent: true } );
         this.animator = new SpriteAnimator(textureAnimators, this.material);
-        var playerGeometry = new THREE.PlaneGeometry(this.width, this.height, 1, 1);
-        var mesh = new THREE.Mesh(playerGeometry, this.material);
-        mesh.position = new THREE.Vector3(0, 0, 2.5);
 
-        this.pivot.add(mesh);
+        var playerGeometry = new THREE.PlaneGeometry(this.width, this.height, 1, 1);
+        var playerMesh = new THREE.Mesh(playerGeometry, this.material);
+        playerMesh.position = new THREE.Vector3(0, 0, 2.5);
+
+        this.weaponMaterial = new THREE.MeshBasicMaterial( { map: Resource.steelAxeTexture, transparent: true });
+        var weaponGeometry = new THREE.PlaneGeometry(2.5, 2.5);
+        var weaponMesh = new THREE.Mesh(weaponGeometry, this.weaponMaterial);
+        weaponMesh.position = new THREE.Vector3(0.85, 0.0, 2.9);
+
+        this.pivot.add(weaponMesh);
+        this.pivot.add(playerMesh);
         scene.add(this.pivot);
 
         this.maxVel = Player.MAX_V_WALK;
@@ -325,101 +349,198 @@ class Player {
 
     update(deltaTime: number): void {
         this.animator.update(deltaTime);
+        if (this.choppingTime >= 0) {
+            --this.choppingTime;
+        }
 
         if (Keyboard.keysDown.length > 0) {
-            if (Keyboard.contains(Keyboard.KEYS.SHIFT)) {
-                this.maxVel = Player.MAX_V_RUN;
-                this.animator.switchAnimation(1);
-            } else {
-                this.maxVel = Player.MAX_V_WALK;
-                this.animator.switchAnimation(0);
+            this.updatePosition(deltaTime);
+
+            if (Keyboard.contains(Keyboard.KEYS.SPACE)) { // It's a choppin time!
+                this.swingAxe(deltaTime);
             }
 
-            var px = this.pivot.position.x;
-            var py = this.pivot.position.y;
+            if (Keyboard.contains(Keyboard.KEYS.B)) { // Build an axe
+                if (this.wood >= 15 && this.axe == AXE.STEEL) {
+                    this.axe = AXE.GOLD;
+                    this.wood -= 15;
 
-            if (Keyboard.contains(Keyboard.KEYS.W) || Keyboard.contains(Keyboard.KEYS.UP)) {
-                this.pivot.position.y += this.maxVel * deltaTime;
-            } else if (Keyboard.contains(Keyboard.KEYS.S) || Keyboard.contains(Keyboard.KEYS.DOWN)) {
-                this.pivot.position.y -= this.maxVel * deltaTime;
-            }
-            if (Keyboard.contains(Keyboard.KEYS.A) || Keyboard.contains(Keyboard.KEYS.LEFT)) {
-                this.pivot.position.x -= this.maxVel * deltaTime;
-            } else if (Keyboard.contains(Keyboard.KEYS.D) || Keyboard.contains(Keyboard.KEYS.RIGHT)) {
-                this.pivot.position.x += this.maxVel * deltaTime;
-            }
+                    this.weaponMaterial.map = Resource.goldAxeTexture;
+                    this.pivot.children[0].rotateZ(-0.65);
+                    setTimeout(function(w) { w.rotateZ(-0.65); }, 0, this.pivot.children[0]);
+                    setTimeout(function(w) { w.rotateZ(0.65); }, 200, this.pivot.children[0]);
+                    setTimeout(function(w) { w.rotateZ(0.65); }, 400, this.pivot.children[0]);
 
-            if (px == this.pivot.position.x && py == this.pivot.position.y) { // we didn't move, possibly walking against a wall or something
-                this.animator.switchAnimation(0); // should be playing the idle animation
+                    Sound.play(Sound.powerup);
+                }
             }
+        } else {
+            // TODO(AJ): Remove the following line, but keep its functionality
+            this.animator.switchAnimation(Player.IDLE_ANIM);
+        }
+    }
 
-            // TODO(AJ): The collision detection works well, but it could possibly be the cause of some bottlenecks,
-            // check if there are any obvious ways to improve performace
-            var nudgeMultiplyer = this.maxVel * 2;
-            var tree = this.level.collides(this.pivot.position.x, this.pivot.position.y, this.width, this.height);
-            if (tree !== null) { // Collision!
-                if (this.level.collides(this.pivot.position.x, py, this.width, this.height) === null) { // the new y value is the problem
-                    if (this.pivot.position.x < tree.pivot.position.x) { // check what half of the object we're on
-                        // FIXME(AJ): What was I going to do here again?
-                        // if (this.pivot.position.x)
+    /** Reads in user input and affects player's position accordingly */
+    updatePosition(deltaTime: number): void {
+        if (Keyboard.contains(Keyboard.KEYS.SHIFT)) {
+            this.maxVel = Player.MAX_V_RUN;
+            this.animator.switchAnimation(Player.RUN_ANIM);
+        } else {
+            this.maxVel = Player.MAX_V_WALK;
+            this.animator.switchAnimation(Player.WALK_ANIM);
+        }
+
+        var px = this.pivot.position.x;
+        var py = this.pivot.position.y;
+
+        var xv = 0;
+        var yv = 0;
+
+        var input = false;
+
+        if (Keyboard.contains(Keyboard.KEYS.W) || Keyboard.contains(Keyboard.KEYS.UP)) {
+            yv = this.maxVel * deltaTime;
+            input = true;
+        } else if (Keyboard.contains(Keyboard.KEYS.S) || Keyboard.contains(Keyboard.KEYS.DOWN)) {
+            yv = -this.maxVel * deltaTime;
+            input = true;
+        }
+        if (Keyboard.contains(Keyboard.KEYS.A) || Keyboard.contains(Keyboard.KEYS.LEFT)) {
+            xv = -this.maxVel * deltaTime;
+            input = true;
+        } else if (Keyboard.contains(Keyboard.KEYS.D) || Keyboard.contains(Keyboard.KEYS.RIGHT)) {
+            xv = this.maxVel * deltaTime;
+            input = true;
+        }
+
+        if (input === false) {
+            this.animator.switchAnimation(0);
+            return;
+        }
+
+        this.pivot.position.x += xv;
+        this.pivot.position.y += yv;
+
+        if (px == this.pivot.position.x && py == this.pivot.position.y) { // we didn't move, possibly walking against a wall or something
+            this.animator.switchAnimation(0); // should be playing the idle animation
+        }
+
+        this.collideWithEntities();
+
+        // TODO(AJ): The collision detection works well, but it could possibly be the cause of some bottlenecks,
+        // check if there are any obvious ways to improve performace
+        // also the code is a little messy, but maybe that's just an unavoidable thing...
+        var nudgeMultiplyer = this.maxVel * 2;
+        var nudgeThreshold = 3; // How close to the edge of the object does the player have to be to get nudged
+        var tree = this.level.collides(this.pivot.position.x, this.pivot.position.y, this.width, this.height);
+        if (tree !== null) { // Collision!
+            if (this.level.collides(this.pivot.position.x, py, this.width, this.height) === null) { // the new y value is the problem
+                if (this.pivot.position.x < tree.pivot.position.x) { // check what half of the object we're on
+                    var dist = Math.abs((this.pivot.position.x + this.width / 2) - (tree.pivot.position.x - tree.width / 2));
+                    if (dist < nudgeThreshold) { // only nudge the player if they're near the edge of the object
+                        if (xv <= 0) { // prevent the player from being stationary when holding UP and LEFT at the corner of a tree
                             this.pivot.position.x -= this.maxVel * deltaTime;
-                        //}
-                    } else {
-                        // if (this.level.collides(this.pivot.position.x + deltaTime * nudgeMultiplyer, this.pivot.position.y, this.width, this.height) === null) {
-                            this.pivot.position.x += this.maxVel * deltaTime;
-                        //}
-                    }
-
-                    this.pivot.position.y = py;
-                } else if (this.level.collides(px, this.pivot.position.y, this.width, this.height) === null) { // the new x value is the problem
-                    if (this.pivot.position.y < tree.pivot.position.y) {
-                        this.pivot.position.y -= this.maxVel * deltaTime;
-                    } else {
-                        if (this.pivot.position.y > tree.pivot.position.y) {
-                            this.pivot.position.y += this.maxVel * deltaTime;
                         }
                     }
-
-                    this.pivot.position.x = px;
-                }
-            }
-
-            if (this.pivot.position.x - this.width / 2 < -this.level.width / 2) {
-                this.pivot.position.x = -this.level.width / 2 + this.width / 2;
-            }
-            if (this.pivot.position.x + this.width / 2 > this.level.width / 2) {
-                this.pivot.position.x = this.level.width / 2 - this.width / 2;
-            }
-            if (this.pivot.position.y - this.height / 2 > this.level.height) {
-                this.pivot.position.y = this.level.height + this.height / 2;
-            }
-            if (this.pivot.position.y - this.height < 0) { // TODO(AJ): This isn't quite perfect yet, but it'll work for now
-                this.pivot.position.y = this.height;
-            }
-
-            // Now that our position has been worked out, check for other input
-
-            if (Keyboard.contains(Keyboard.KEYS.C)) { // It's a choppin time!
-                // Get the closest tree
-                var closest = -1; // index of the closest tree
-                var closestDist = 5; // How close a tree has to be to us to be in choppin range
-                for (var t in this.level.trees) {
-                    var diff = new THREE.Vector3();
-                    diff.subVectors(this.level.trees[t].pivot.position, this.pivot.position);
-                    var dist = diff.length();
-                    if (dist < closestDist) {
-                        closestDist = dist;
-                        closest = t;
+                } else {
+                    var dist = Math.abs((this.pivot.position.x - this.width / 2) - (tree.pivot.position.x + tree.width / 2));
+                    if (dist < nudgeThreshold) { // only nudge the player if they're near the edge of the object
+                        if (xv >= 0) {
+                            this.pivot.position.x += this.maxVel * deltaTime;
+                        }
                     }
                 }
-                if (closest != -1 && this.level.trees[closest].chopped == false) {
-                    var rand = Math.floor(Math.random() * 3);
-                    Sound.play(rand == 0 ? Sound.hit2 : (rand == 1 ? Sound.hit3 : Sound.hit4));
 
-                    this.wood += this.level.trees[closest].woodValue;
-                    get('woodInfoTab').innerHTML = "Wood: " + this.wood;
+                this.pivot.position.y = py;
+            } else if (this.level.collides(px, this.pivot.position.y, this.width, this.height) === null) { // the new x value is the problem
+                if (this.pivot.position.y < tree.pivot.position.y) {
+                    // NOTE(AJ): At the current time, dist will almost certainly be *always* smaller than nudeDistance,
+                    // since tree trunks have small radiai, but we'll leave the checks in for now
+                    var dist = Math.abs((this.pivot.position.y) - (tree.pivot.position.y + tree.trunkRadius));
+                    if (dist < nudgeThreshold) { // only nudge the player if they're near the edge of the object
+                        if (yv <= 0) { // ensure the player isn't walking the opposite direction
+                            this.pivot.position.y -= this.maxVel * deltaTime;
+                        }
+                    }
+                } else {
+                    if (this.pivot.position.y > tree.pivot.position.y) {
+                        var dist = Math.abs((this.pivot.position.y) - (tree.pivot.position.y - tree.trunkRadius));
+                        if (dist < nudgeThreshold) { // only nudge the player if they're near the edge of the object
+                            if (yv >= 0) {
+                                this.pivot.position.y += this.maxVel * deltaTime;
+                            }
+                        }
+                    }
+                }
 
-                    this.level.trees[closest].chopped = true;
+                this.pivot.position.x = px;
+            }
+        }
+
+        if (this.pivot.position.x - this.width / 2 < -this.level.width / 2) {
+            this.pivot.position.x = -this.level.width / 2 + this.width / 2;
+        }
+        if (this.pivot.position.x + this.width / 2 > this.level.width / 2) {
+            this.pivot.position.x = this.level.width / 2 - this.width / 2;
+        }
+        if (this.pivot.position.y - this.height / 2 > this.level.height) {
+            this.pivot.position.y = this.level.height + this.height / 2;
+        }
+        if (this.pivot.position.y - this.height < 0) { // TODO(AJ): This isn't quite perfect yet, but it'll work for now
+            this.pivot.position.y = this.height;
+        }
+    }
+
+    collideWithEntities(): void {
+        for (var e in this.gameState.entityManager.entities) {
+            var entity = this.gameState.entityManager.entities[e];
+            var width = (<THREE.PlaneGeometry>entity.mesh.geometry).parameters.width;
+            var height = (<THREE.PlaneGeometry>entity.mesh.geometry).parameters.height;
+            if (this.pivot.position.x + this.width / 2 > entity.mesh.position.x - width / 2 &&
+                this.pivot.position.x - this.width / 2 < entity.mesh.position.x + width / 2 &&
+                this.pivot.position.y > entity.mesh.position.y &&
+                this.pivot.position.y < entity.mesh.position.y + height) {
+
+                this.gameState.entityManager.remove(entity);
+
+                Sound.play(Sound.pickup);
+                ++this.wood;
+                get('woodInfoTab').innerHTML = "Wood: " + this.wood;
+            }
+        }
+    }
+
+    swingAxe(deltaTime: number): void {
+        if (this.choppingTime === -1) {
+            this.animateAxeSwing();
+            this.choppingTime = 22;
+
+            // Get the closest tree
+            var closest = -1; // index of the closest tree
+            var closestDist = 5; // How close a tree has to be to us to be in choppin range
+            for (var t in this.level.trees) {
+                var diff = new THREE.Vector3();
+                diff.subVectors(this.level.trees[t].pivot.position, this.pivot.position);
+                var dist = diff.length();
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closest = t;
+                }
+            }
+            if (closest != -1 && this.level.trees[closest].damage > 0) {
+                var tree = this.level.trees[closest];
+                setTimeout(function() { Sound.playRandom(Sound.hit); }, 100);
+                tree.chop();
+
+                // TODO(AJ): Ensure that entities aren't generated outside the level's bounds
+
+                if (tree.damage == 0) { // if we chopped the whole thing down
+                    for (var i = 0; i < tree.height; ++i) {
+                        this.gameState.entityManager.add(new TreeSectionEntity(
+                            tree.pivot.position.x + (Math.random() * 6 - 3),
+                            tree.pivot.position.y + (Math.random() * 6 - 3),
+                            1 + Math.random() * 2));
+                    }
 
                     // TODO(AJ): Figure out how to change the size of tree planes once they have been
                     // chopped (probably requires the mesh to be removed and another one added)
@@ -436,6 +557,15 @@ class Player {
             }
         }
     }
+
+    animateAxeSwing(): void {
+        this.pivot.children[0].rotateZ(-0.5);
+        setTimeout(function(w) {w.rotateZ(-0.5)}, 50, this.pivot.children[0]);
+        setTimeout(function(w) {w.rotateZ(0.5)}, 100, this.pivot.children[0]);
+        setTimeout(function(w) {w.rotateZ(0.5)}, 250, this.pivot.children[0]);
+        // NOTE(AJ): Can we just take a mintue to appreciate what a beautiful thing
+        // callbacks are? Like for real, shout out to setTimeout, you da real MVP
+    }
 }
 
 class Level {
@@ -450,6 +580,7 @@ class Level {
         this.height = height;
 
         var planeGeometry = new THREE.PlaneGeometry(width, height);
+        Resource.grassTexture.repeat.set(width / 15, height / 15);
         var planeMaterial = new THREE.MeshPhongMaterial({
             map: Resource.grassTexture
         });
@@ -457,25 +588,22 @@ class Level {
         this.mesh.position = new THREE.Vector3(0, this.height / 2, 0);
         scene.add(this.mesh);
 
-        this.trees = new Array<Tree>(50);
+        this.trees = new Array<Tree>(180);
         for (var i = 0; i < this.trees.length; ++i) {
             var pos: THREE.Vector2;
-            do {
-            } while (false);
-            pos = new THREE.Vector2(Math.random() * width - width / 2, Math.random() * height + 5);
+            pos = new THREE.Vector2(Math.random() * width - width / 2, Math.random() * (height-5) + 5);
 
-            this.trees[i] = new Tree(pos.x, pos.y, new THREE.Vector2(48, 48), scene);
+            this.trees[i] = new Tree(pos.x, pos.y, scene);
         }
     }
 
     collides(x: number, y: number, width: number, height: number): Tree {
-        var trunkRadius = 1.0;
         for (var t in this.trees) {
             var tree = this.trees[t];
-            if (x - width / 2 > tree.pivot.position.x - trunkRadius - tree.width / 2 &&
-                x + width / 2 < tree.pivot.position.x + trunkRadius + tree.width / 2 &&
-                y > tree.pivot.position.y - trunkRadius &&
-                y < tree.pivot.position.y + trunkRadius) {
+            if (x - width / 2 > tree.pivot.position.x - tree.trunkRadius - tree.width / 2 &&
+                x + width / 2 < tree.pivot.position.x + tree.trunkRadius + tree.width / 2 &&
+                y > tree.pivot.position.y - tree.trunkRadius &&
+                y < tree.pivot.position.y + tree.trunkRadius) {
                     return tree;
                 }
         }
@@ -500,14 +628,14 @@ class Level {
 class Tree {
 
     pivot: THREE.Object3D;
-    size: THREE.Vector2;
-    chopped: boolean = false;
+    damage: number; // how many hits it takes to knock down (when 0, tree is chopped down)
     width: number;
     height: number;
+    trunkRadius: number;
 
     woodValue: number; // how many wood units this tree drops upon being cut down
 
-    constructor(x: number, y: number, size: THREE.Vector2, scene: THREE.Scene) {
+    constructor(x: number, y: number, scene: THREE.Scene) {
 
         this.pivot = new THREE.Object3D();
         this.pivot.position = new THREE.Vector3(x, y, 0);
@@ -515,6 +643,7 @@ class Tree {
 
         this.width = 5;
         this.height = 7 + Math.floor(Math.random() * 3);
+        this.trunkRadius = 1.0;
         this.woodValue = this.height;
         // NOTE(AJ): if we want both sides of the tree plane to render for some reason
         // we can set { side: THREE.DoubleSide } in the Material properties
@@ -533,12 +662,78 @@ class Tree {
         this.pivot.add(mesh);
         scene.add(this.pivot);
 
-        this.size = size;
-        this.chopped = false;
+        this.damage = Math.floor(this.width / 2);
     }
 
-    chop() { // not at all necessary - totally inlinable, but an awesome method name
-        this.chopped = true;
+    chop() {
+        if (this.damage > 0) {
+            --this.damage;
+        }
+    }
+}
+
+class Entity {
+    mesh: THREE.Mesh;
+    life: number;
+    bobDistance: number;
+    startingZ: number;
+
+    constructor(x: number, y: number, startingZ: number, width: number, height: number,
+        material: THREE.Material, life: number, bobDistance: number) {
+        var geometry = new THREE.PlaneGeometry(width, height);
+        this.mesh = new THREE.Mesh(geometry, material);
+        this.mesh.position.x = x;
+        this.mesh.position.y = y;
+        this.startingZ = startingZ;
+        this.mesh.position.z = this.startingZ;
+        this.mesh.rotateX(Math.PI / 6.0);
+        this.life = life;
+        this.bobDistance = bobDistance;
+    }
+
+    update(deltaTime: number): void {
+        this.mesh.position.z = this.startingZ + deltaTime * (Math.sin(this.life / 10.0) / 80.0 * this.bobDistance);
+        --this.life;
+    }
+}
+
+class TreeSectionEntity extends Entity {
+
+    constructor(x: number, y: number, startingZ: number) {
+        var material = new THREE.MeshBasicMaterial( { map: Resource.treeSectionTexture, transparent: true } );
+        var life = 350 + Math.floor(Math.random() * 150);
+        super(x, y, startingZ, 2, 2, material, life, Math.random() * 5 + 2);
+    }
+}
+
+class EntityManager {
+    entities: Entity[];
+    scene: THREE.Scene;
+
+    constructor(scene: THREE.Scene) {
+        this.scene = scene;
+        this.entities = new Array<Entity>(0);
+    }
+
+    add(entity: Entity) {
+        this.scene.add(entity.mesh);
+        this.entities.push(entity);
+    }
+
+    remove(entity: Entity) { // if you want to remove an entity before its life is up
+        var index = this.entities.indexOf(entity);
+        this.scene.remove(this.entities[index].mesh);
+        this.entities.splice(index, 1);
+    }
+
+    update(deltaTime: number): void {
+        for (var e in this.entities) {
+            this.entities[e].update(deltaTime);
+            if (this.entities[e].life <= 0) {
+                this.scene.remove(this.entities[e].mesh);
+                this.entities.splice(e, 1);
+            }
+        }
     }
 }
 
@@ -621,33 +816,58 @@ class TextureAnimator {
 
 class Resource {
 
-    static playerTexture: THREE.Texture;
-    // static playerRunningTexture: THREE.Texture;
+    static textureLoader: THREE.TextureLoader;
+
+    static playerIdleTexture: THREE.Texture;
+    static playerWalkingTexture: THREE.Texture;
+    static playerRunningTexture: THREE.Texture;
+
+    static steelAxeTexture: THREE.Texture;
+    static goldAxeTexture: THREE.Texture;
+
+    static treeSectionTexture: THREE.Texture;
+
     static grassTexture: THREE.Texture;
     static trunkTexture: THREE.Texture;
     static treeTexture: THREE.Texture;
     // static deciduous_sapling: HTMLImageElement;
     // static coninferous_sapling: HTMLImageElement;
 
-    static textureLoader: THREE.TextureLoader;
-
     static loadAll() {
         Resource.textureLoader = new THREE.TextureLoader();
 
         // TODO(AJ): Check if textureLoader is the preferred way of loading textures
         // Seems to work for now at least!
-        Resource.textureLoader.load("res/player.png", function(tex) {
-            Resource.playerTexture = tex;
+        Resource.textureLoader.load("res/player_idle.png", function(tex) {
+            Resource.playerIdleTexture = tex;
         });
 
-        // Resource.textureLoader.load("res/player_running.png", function(tex) {
-        //     Resource.playerRunningTexture = tex;
-        // });
+        Resource.textureLoader.load("res/player_walking.png", function(tex) {
+            Resource.playerWalkingTexture = tex;
+        });
 
+        Resource.textureLoader.load("res/player_running.png", function(tex) {
+            Resource.playerRunningTexture = tex;
+        });
+
+
+        // AXES
+        Resource.textureLoader.load("res/steel_axe.png", function(tex) {
+            Resource.steelAxeTexture = tex;
+        });
+
+        Resource.textureLoader.load("res/gold_axe.png", function(tex) {
+            Resource.goldAxeTexture = tex;
+        });
+
+        Resource.textureLoader.load("res/tree_section.png", function(tex) {
+            Resource.treeSectionTexture = tex;
+        });
+
+        // BACKGROUND
         Resource.textureLoader.load("res/grass_diffuse.jpg", function(tex) {
             Resource.grassTexture = tex;
             Resource.grassTexture.wrapS = Resource.grassTexture.wrapT = THREE.RepeatWrapping;
-            Resource.grassTexture.repeat.set(3, 6);
         });
 
         Resource.textureLoader.load("res/tree.png", function(tex) {
@@ -819,7 +1039,11 @@ class Sound {
 
     static hit2: HTMLAudioElement;
     static hit3: HTMLAudioElement;
-    static hit4 : HTMLAudioElement;
+    static hit4: HTMLAudioElement;
+    static pickup: HTMLAudioElement;
+    static powerup: HTMLAudioElement;
+
+    static hit: HTMLAudioElement[];
 
     static muted: boolean = false;
     static volume: number = 0.5;
@@ -829,6 +1053,14 @@ class Sound {
         Sound.hit2 = <HTMLAudioElement>get('hit2');
         Sound.hit3 = <HTMLAudioElement>get('hit3');
         Sound.hit4 = <HTMLAudioElement>get('hit4');
+
+        Sound.hit = new Array<HTMLAudioElement>();
+        Sound.hit.push(Sound.hit2);
+        Sound.hit.push(Sound.hit3);
+        Sound.hit.push(Sound.hit4);
+
+        Sound.pickup = <HTMLAudioElement>get('pickup');
+        Sound.powerup = <HTMLAudioElement>get('powerup');
 
         Sound.volumeSlider = <HTMLInputElement>get('volumeSlider');
     }
@@ -846,6 +1078,11 @@ class Sound {
         sound.volume = Sound.volume;
         sound.currentTime = 0;
         sound.play();
+    }
+
+    static playRandom(sounds: HTMLAudioElement[]): void {
+        var rand = Math.floor(Math.random() * sounds.length);
+        Sound.play(sounds[rand]);
     }
 }
 

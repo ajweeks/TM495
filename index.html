@@ -82,12 +82,11 @@
         width: 720px;
         margin: 0 auto;
     }
-    #gameplayTabs .gameInfo {
+    #gameplayTabs div {
         display: inline-block;
+        color: #DDD;
         padding: 5px 12px 2px 12px;
         background-color: #531212;
-        color: #DDD;
-        /*height: 25px;*/
         border-bottom-left-radius: 8px;
         border-bottom-right-radius: 8px;
         box-shadow: 2px 2px 1px rgba(1, 1, 1, 0.5), inset -1px -1px 1px rgba(1, 1, 1, 0.5);
@@ -107,11 +106,11 @@
     <div id="aboutState" style="display: none">
         <div id="backButton" class="button" onclick="Main.sm.enterPreviousState();">Back</div>
         <p>
-            TM495 is a 2D lumberjack game made by AJ Weeks in December 2015.
+            TM495 is a lumberjack game made by AJ Weeks in December 2015.
         </p>
         <div>
             <a href="https://twitter.com/home?status=You%20should%20try%20AJ%20Weeks'%20newest%20game,%20TM495%20over%20at%20ajweeks.github.io/tm495"
-                style="color: rgba(0, 0,0,0)"> <!-- Prevent weird line from rendering by making it invisible -->
+                style="color: rgba(0,0,0,0)"> <!-- Prevent weird line from rendering by making it invisible -->
                 <img src="res/twitter.png" style="cursor: pointer">
             </a>
             <a href="https://www.facebook.com/sharer/sharer.php?u=ajweeks.github.io">
@@ -123,23 +122,27 @@
     <audio id="hit2"><source src="res/sounds/hit2.wav"></source></audio>
     <audio id="hit3"><source src="res/sounds/hit3.wav"></source></audio>
     <audio id="hit4"><source src="res/sounds/hit4.wav"></source></audio>
+    <audio id="pickup"><source src="res/sounds/pickup.wav"></source></audio>
+    <audio id="powerup"><source src="res/sounds/powerup.wav"></source></audio>
 
     <div id="gameState" style="display: none">
         <div id="backButton" class="button" onclick="Main.sm.enterPreviousState();">Back</div>
         <div id="gameWindow">
-            <div id="gameContent">
-            </div>
+            <!-- TODO(AJ): Find out how to add fullscreen option -->
+            <div id="gameContent"></div>
         <div id="gameplayTabs">
-            <div id="woodInfoTab" class="gameInfo">Wood: 0</div>
-            <div id="paperInfoTab" class="gameInfo">Paper: 0</div>
+            <div id="woodInfoTab">Wood: 0</div>
+            <div id="paperInfoTab">Paper: 0</div>
             <div id="volume" style="display: inline-block">
-                <input id="volumeSlider" type="range" value="75" style="display: block; margin-left: 92px;" onchange="Sound.changeVolume()"/>
+                <input id="volumeSlider" type="range" value="75" style="" onchange="Sound.changeVolume()"/>
                 <span style="display: block; font-size: 22px; margin-left: 125px;">volume</span>
             </div>
         </div>
         <br />
         <span>
             WASD or arrow keys to move
+            <br />
+            Space to chop
             <br />
             Shift to sprint
         </span>
