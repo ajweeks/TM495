@@ -34,7 +34,7 @@ var Main = (function () {
         Main.sm.update(deltaTime);
         Main.sm.render();
     };
-    Main.VERSION = "0.017";
+    Main.VERSION = "0.018";
     Main.elapsed = 0.0;
     Main.lastDate = 0.0;
     Main.frames = 0;
@@ -100,6 +100,8 @@ var StateManager = (function () {
                 return new GameState(this);
             case "about":
                 return new AboutState(this);
+            case "loading":
+                return new LoadingState(this);
             default:
                 console.error("Uncaught state type in StateManager.getState(): ", state);
                 return null;
@@ -111,7 +113,8 @@ var STATE_TYPE;
 (function (STATE_TYPE) {
     STATE_TYPE[STATE_TYPE["MAINMENU"] = 0] = "MAINMENU";
     STATE_TYPE[STATE_TYPE["ABOUT"] = 1] = "ABOUT";
-    STATE_TYPE[STATE_TYPE["GAME"] = 2] = "GAME";
+    STATE_TYPE[STATE_TYPE["LOADING"] = 2] = "LOADING";
+    STATE_TYPE[STATE_TYPE["GAME"] = 3] = "GAME";
 })(STATE_TYPE || (STATE_TYPE = {}));
 ;
 var BasicState = (function () {
@@ -160,6 +163,28 @@ var AboutState = (function (_super) {
     };
     return AboutState;
 })(BasicState);
+var LoadingState = (function (_super) {
+    __extends(LoadingState, _super);
+    function LoadingState(sm) {
+        _super.call(this, STATE_TYPE.LOADING, sm);
+    }
+    LoadingState.prototype.update = function (deltaTime) {
+        if (Resource.ALL_LOADED) {
+            this.sm.enterPreviousState();
+            this.sm.enterState(new GameState(this.sm));
+        }
+    };
+    LoadingState.prototype.hide = function () {
+        get('loadingState').style.display = "none";
+    };
+    LoadingState.prototype.restore = function () {
+        get('loadingState').style.display = "initial";
+    };
+    LoadingState.prototype.destroy = function () {
+        get('loadingState').style.display = "none";
+    };
+    return LoadingState;
+})(BasicState);
 var GameState = (function (_super) {
     __extends(GameState, _super);
     function GameState(sm) {
@@ -167,12 +192,12 @@ var GameState = (function (_super) {
         get('gameState').style.display = "initial";
         this.scene = new THREE.Scene();
         this.scene.add(new THREE.AmbientLight(new THREE.Color(0.8, 0.8, 0.9).getHex()));
-        this.level = new Level(45, 450, this.scene);
+        this.entityManager = new EntityManager(this.scene);
+        this.level = new Level(40, 2535, this.scene);
         this.player = new Player(this.level, this.scene, this);
         this.cameraAcceleration = new THREE.Vector2(0, 0.022);
         Main.renderer.camera.position.x = this.player.pivot.position.x;
         Main.renderer.camera.position.y = this.player.pivot.position.y - this.player.height;
-        this.entityManager = new EntityManager(this.scene);
     }
     GameState.prototype.hide = function () {
         get('gameState').style.display = "none";
@@ -203,45 +228,200 @@ var GameState = (function (_super) {
     };
     return GameState;
 })(BasicState);
+var Axe = (function () {
+    function Axe(type) {
+        this.type = type;
+        switch (this.type) {
+            case AXE.STEEL:
+                {
+                    this.damage = 1;
+                    this.swingTime = 22;
+                }
+                break;
+            case AXE.GOLD:
+                {
+                    this.damage = 2;
+                    this.swingTime = 18;
+                }
+                break;
+        }
+    }
+    return Axe;
+})();
 var AXE;
 (function (AXE) {
     AXE[AXE["STEEL"] = 0] = "STEEL";
     AXE[AXE["GOLD"] = 1] = "GOLD";
 })(AXE || (AXE = {}));
+var DIRECTION;
+(function (DIRECTION) {
+    DIRECTION[DIRECTION["NORTH"] = 0] = "NORTH";
+    DIRECTION[DIRECTION["NORTHEAST"] = 1] = "NORTHEAST";
+    DIRECTION[DIRECTION["EAST"] = 2] = "EAST";
+    DIRECTION[DIRECTION["SOUTHEAST"] = 3] = "SOUTHEAST";
+    DIRECTION[DIRECTION["SOUTH"] = 4] = "SOUTH";
+    DIRECTION[DIRECTION["SOUTHWEST"] = 5] = "SOUTHWEST";
+    DIRECTION[DIRECTION["WEST"] = 6] = "WEST";
+    DIRECTION[DIRECTION["NORTHWEST"] = 7] = "NORTHWEST";
+})(DIRECTION || (DIRECTION = {}));
+var Direction = (function () {
+    function Direction() {
+    }
+    Direction.anticlockwise = function (d) {
+        switch (d) {
+            case DIRECTION.NORTH:
+                return DIRECTION.NORTHWEST;
+                break;
+            case DIRECTION.NORTHEAST:
+                return DIRECTION.NORTH;
+                break;
+            case DIRECTION.EAST:
+                return DIRECTION.NORTHEAST;
+                break;
+            case DIRECTION.SOUTHEAST:
+                return DIRECTION.EAST;
+                break;
+            case DIRECTION.SOUTH:
+                return DIRECTION.SOUTHEAST;
+                break;
+            case DIRECTION.SOUTHWEST:
+                return DIRECTION.SOUTH;
+                break;
+            case DIRECTION.WEST:
+                return DIRECTION.SOUTHWEST;
+                break;
+            case DIRECTION.NORTHWEST:
+                return DIRECTION.WEST;
+                break;
+        }
+    };
+    Direction.clockwise = function (d) {
+        switch (d) {
+            case DIRECTION.NORTH:
+                return DIRECTION.NORTHEAST;
+                break;
+            case DIRECTION.NORTHEAST:
+                return DIRECTION.EAST;
+                break;
+            case DIRECTION.EAST:
+                return DIRECTION.SOUTHEAST;
+                break;
+            case DIRECTION.SOUTHEAST:
+                return DIRECTION.SOUTH;
+                break;
+            case DIRECTION.SOUTH:
+                return DIRECTION.SOUTHWEST;
+                break;
+            case DIRECTION.SOUTHWEST:
+                return DIRECTION.WEST;
+                break;
+            case DIRECTION.WEST:
+                return DIRECTION.NORTHWEST;
+                break;
+            case DIRECTION.NORTHWEST:
+                return DIRECTION.NORTH;
+                break;
+        }
+    };
+    Direction.opposite = function (d) {
+        switch (d) {
+            case DIRECTION.NORTH:
+                return DIRECTION.SOUTH;
+                break;
+            case DIRECTION.NORTHEAST:
+                return DIRECTION.SOUTHWEST;
+                break;
+            case DIRECTION.EAST:
+                return DIRECTION.WEST;
+                break;
+            case DIRECTION.SOUTHEAST:
+                return DIRECTION.NORTHWEST;
+                break;
+            case DIRECTION.SOUTH:
+                return DIRECTION.NORTH;
+                break;
+            case DIRECTION.SOUTHWEST:
+                return DIRECTION.NORTHEAST;
+                break;
+            case DIRECTION.WEST:
+                return DIRECTION.EAST;
+                break;
+            case DIRECTION.NORTHWEST:
+                return DIRECTION.SOUTHEAST;
+                break;
+        }
+    };
+    Direction.sameishDirection = function (d, dir) {
+        switch (dir) {
+            case DIRECTION.NORTH:
+                return d === DIRECTION.NORTHWEST || d === DIRECTION.NORTH || d === DIRECTION.NORTHEAST;
+                break;
+            case DIRECTION.NORTHEAST:
+                return d === DIRECTION.NORTH || d === DIRECTION.NORTHEAST || d === DIRECTION.EAST;
+                break;
+            case DIRECTION.EAST:
+                return d === DIRECTION.NORTHEAST || d === DIRECTION.EAST || d === DIRECTION.SOUTHEAST;
+                break;
+            case DIRECTION.SOUTHEAST:
+                return d === DIRECTION.EAST || d === DIRECTION.SOUTHEAST || d === DIRECTION.SOUTH;
+                break;
+            case DIRECTION.SOUTH:
+                return d === DIRECTION.SOUTHEAST || d === DIRECTION.SOUTH || d === DIRECTION.SOUTHWEST;
+                break;
+            case DIRECTION.SOUTHWEST:
+                return d === DIRECTION.SOUTH || d === DIRECTION.SOUTHWEST || d === DIRECTION.WEST;
+                break;
+            case DIRECTION.WEST:
+                return d === DIRECTION.SOUTHWEST || d === DIRECTION.WEST || d === DIRECTION.NORTHWEST;
+                break;
+            case DIRECTION.NORTHWEST:
+                return d === DIRECTION.WEST || d === DIRECTION.NORTHWEST || d === DIRECTION.NORTH;
+                break;
+        }
+    };
+    return Direction;
+})();
 var Player = (function () {
     function Player(level, scene, gameState) {
-        this.axe = AXE.STEEL;
-        this.choppingTime = -1;
+        this.facing = DIRECTION.EAST;
+        this.choppingTime = 0;
         this.level = level;
         this.gameState = gameState;
         this.width = 2.5;
         this.height = 5;
+        this.axe = new Axe(AXE.STEEL);
         this.wood = 0;
         get('woodInfoTab').innerHTML = "Wood: " + this.wood;
         this.pivot = new THREE.Object3D();
         this.pivot.position = new THREE.Vector3(0, this.height, 0);
-        this.pivot.rotateX(Math.PI / 6.0);
+        this.pivot.rotation.x = (Math.PI / 6.0);
         var textureAnimators = new Array();
-        textureAnimators.push(new TextureAnimator(Resource.playerIdleTexture, 2, 1, 2, 480));
-        textureAnimators.push(new TextureAnimator(Resource.playerWalkingTexture, 4, 1, 4, 160));
-        textureAnimators.push(new TextureAnimator(Resource.playerRunningTexture, 4, 1, 4, 130));
-        this.material = new THREE.MeshBasicMaterial({ map: textureAnimators[Player.IDLE_ANIM].texture, transparent: true });
-        this.animator = new SpriteAnimator(textureAnimators, this.material);
+        textureAnimators.push(new TextureAnimator(Resource.playerIdleTexture, 2, 1, 480));
+        textureAnimators.push(new TextureAnimator(Resource.playerWalkingTexture, 4, 1, 160));
+        textureAnimators.push(new TextureAnimator(Resource.playerRunningTexture, 4, 1, 130));
+        textureAnimators.push(new TextureAnimator(Resource.playerUpwardsIdleTexture, 2, 1, 480));
+        textureAnimators.push(new TextureAnimator(Resource.playerUpwardsWalkingTexture, 4, 1, 160));
+        textureAnimators.push(new TextureAnimator(Resource.playerUpwardsRunningTexture, 4, 1, 130));
+        textureAnimators.push(new TextureAnimator(Resource.playerDownwardsIdleTexture, 2, 1, 480));
+        textureAnimators.push(new TextureAnimator(Resource.playerDownwardsWalkingTexture, 4, 1, 160));
+        textureAnimators.push(new TextureAnimator(Resource.playerDownwardsRunningTexture, 4, 1, 130));
+        this.playerMaterial = new THREE.MeshBasicMaterial({ map: textureAnimators[Player.IDLE_UPWARDS_ANIM].texture, transparent: true, side: THREE.DoubleSide });
+        this.animator = new SpriteAnimator(textureAnimators, this.playerMaterial);
         var playerGeometry = new THREE.PlaneGeometry(this.width, this.height, 1, 1);
-        var playerMesh = new THREE.Mesh(playerGeometry, this.material);
-        playerMesh.position = new THREE.Vector3(0, 0, 2.5);
-        this.weaponMaterial = new THREE.MeshBasicMaterial({ map: Resource.steelAxeTexture, transparent: true });
-        var weaponGeometry = new THREE.PlaneGeometry(2.5, 2.5);
-        var weaponMesh = new THREE.Mesh(weaponGeometry, this.weaponMaterial);
-        weaponMesh.position = new THREE.Vector3(0.85, 0.0, 2.9);
-        this.pivot.add(weaponMesh);
-        this.pivot.add(playerMesh);
+        this.playerMesh = new THREE.Mesh(playerGeometry, this.playerMaterial);
+        this.playerMesh.position = new THREE.Vector3(0, 0, 2.5);
+        this.toolMaterial = new THREE.MeshBasicMaterial({ map: Resource.steelAxeTexture, transparent: true, side: THREE.DoubleSide });
+        var toolGeometry = new THREE.PlaneGeometry(2.5, 2.5);
+        this.toolMesh = new THREE.Mesh(toolGeometry, this.toolMaterial);
+        this.toolMesh.position = new THREE.Vector3(1.0, 0.0, -0.1);
+        this.playerMesh.add(this.toolMesh);
+        this.pivot.add(this.playerMesh);
         scene.add(this.pivot);
         this.maxVel = Player.MAX_V_WALK;
     }
     Player.prototype.update = function (deltaTime) {
         this.animator.update(deltaTime);
-        if (this.choppingTime >= 0) {
+        if (this.choppingTime > 0) {
             --this.choppingTime;
         }
         if (Keyboard.keysDown.length > 0) {
@@ -250,30 +430,44 @@ var Player = (function () {
                 this.swingAxe(deltaTime);
             }
             if (Keyboard.contains(Keyboard.KEYS.B)) {
-                if (this.wood >= 15 && this.axe == AXE.STEEL) {
-                    this.axe = AXE.GOLD;
+                if (this.wood >= 15 && this.axe.type == AXE.STEEL) {
+                    this.axe = new Axe(AXE.GOLD);
                     this.wood -= 15;
-                    this.weaponMaterial.map = Resource.goldAxeTexture;
-                    this.pivot.children[0].rotateZ(-0.65);
-                    setTimeout(function (w) { w.rotateZ(-0.65); }, 0, this.pivot.children[0]);
-                    setTimeout(function (w) { w.rotateZ(0.65); }, 200, this.pivot.children[0]);
-                    setTimeout(function (w) { w.rotateZ(0.65); }, 400, this.pivot.children[0]);
+                    this.toolMaterial.map = Resource.goldAxeTexture;
+                    this.toolMesh.rotateZ(-1);
+                    setTimeout(function (w) { w.rotateZ(-1); }, 50, this.toolMesh);
+                    setTimeout(function (w) { w.rotateZ(-1); }, 150, this.toolMesh);
+                    setTimeout(function (w) { w.rotateZ(-1); }, 250, this.toolMesh);
+                    setTimeout(function (w) { w.rotateZ(-1); }, 350, this.toolMesh);
+                    setTimeout(function (w) { w.rotateZ(5); }, 450, this.toolMesh);
                     Sound.play(Sound.powerup);
                 }
             }
         }
         else {
-            this.animator.switchAnimation(Player.IDLE_ANIM);
+            switch (this.facing) {
+                case DIRECTION.NORTH:
+                case DIRECTION.NORTHEAST:
+                case DIRECTION.NORTHWEST:
+                    this.animator.switchAnimation(Player.IDLE_UPWARDS_ANIM);
+                    break;
+                case DIRECTION.SOUTH:
+                case DIRECTION.SOUTHEAST:
+                case DIRECTION.SOUTHWEST:
+                    this.animator.switchAnimation(Player.IDLE_DOWNWARDS_ANIM);
+                    break;
+                default:
+                    this.animator.switchAnimation(Player.IDLE_ANIM);
+                    break;
+            }
         }
     };
     Player.prototype.updatePosition = function (deltaTime) {
         if (Keyboard.contains(Keyboard.KEYS.SHIFT)) {
             this.maxVel = Player.MAX_V_RUN;
-            this.animator.switchAnimation(Player.RUN_ANIM);
         }
         else {
             this.maxVel = Player.MAX_V_WALK;
-            this.animator.switchAnimation(Player.WALK_ANIM);
         }
         var px = this.pivot.position.x;
         var py = this.pivot.position.y;
@@ -296,14 +490,86 @@ var Player = (function () {
             xv = this.maxVel * deltaTime;
             input = true;
         }
-        if (input === false) {
-            this.animator.switchAnimation(0);
-            return;
+        if (yv > 0) {
+            if (xv < 0) {
+                this.facing = DIRECTION.NORTHWEST;
+                this.playerMesh.rotation.y = Math.PI;
+            }
+            else if (xv > 0) {
+                this.facing = DIRECTION.NORTHEAST;
+                this.playerMesh.rotation.y = 0;
+            }
+            else {
+                this.facing = DIRECTION.NORTH;
+            }
+            if (this.maxVel === Player.MAX_V_RUN) {
+                this.animator.switchAnimation(Player.RUN_UPWARDS_ANIM);
+            }
+            else if (this.maxVel === Player.MAX_V_WALK) {
+                this.animator.switchAnimation(Player.WALK_UPWARDS_ANIM);
+            }
+        }
+        else if (yv < 0) {
+            if (xv < 0) {
+                this.facing = DIRECTION.SOUTHWEST;
+                this.playerMesh.rotation.y = Math.PI;
+            }
+            else if (xv > 0) {
+                this.facing = DIRECTION.SOUTHEAST;
+                this.playerMesh.rotation.y = 0;
+            }
+            else {
+                this.facing = DIRECTION.SOUTH;
+            }
+            if (this.maxVel === Player.MAX_V_RUN) {
+                this.animator.switchAnimation(Player.RUN_DOWNWARDS_ANIM);
+            }
+            else if (this.maxVel === Player.MAX_V_WALK) {
+                this.animator.switchAnimation(Player.WALK_DOWNWARDS_ANIM);
+            }
+        }
+        else if (xv < 0) {
+            this.facing = DIRECTION.WEST;
+            this.playerMesh.rotation.y = Math.PI;
+            if (this.maxVel === Player.MAX_V_RUN) {
+                this.animator.switchAnimation(Player.RUN_ANIM);
+            }
+            else if (this.maxVel === Player.MAX_V_WALK) {
+                this.animator.switchAnimation(Player.WALK_ANIM);
+            }
+        }
+        else if (xv > 0) {
+            this.facing = DIRECTION.EAST;
+            this.playerMesh.rotation.y = 0;
+            if (this.maxVel === Player.MAX_V_RUN) {
+                this.animator.switchAnimation(Player.RUN_ANIM);
+            }
+            else if (this.maxVel === Player.MAX_V_WALK) {
+                this.animator.switchAnimation(Player.WALK_ANIM);
+            }
+        }
+        if (xv !== 0 && yv !== 0) {
+            xv /= Math.SQRT2;
+            yv /= Math.SQRT2;
         }
         this.pivot.position.x += xv;
         this.pivot.position.y += yv;
-        if (px == this.pivot.position.x && py == this.pivot.position.y) {
-            this.animator.switchAnimation(0);
+        if (px === this.pivot.position.x && py === this.pivot.position.y) {
+            switch (this.facing) {
+                case DIRECTION.NORTH:
+                case DIRECTION.NORTHEAST:
+                case DIRECTION.NORTHWEST:
+                    this.animator.switchAnimation(Player.IDLE_UPWARDS_ANIM);
+                    break;
+                case DIRECTION.SOUTH:
+                case DIRECTION.SOUTHEAST:
+                case DIRECTION.SOUTHWEST:
+                    this.animator.switchAnimation(Player.IDLE_DOWNWARDS_ANIM);
+                    break;
+                default:
+                    this.animator.switchAnimation(Player.IDLE_ANIM);
+                    break;
+            }
         }
         this.collideWithEntities();
         var nudgeMultiplyer = this.maxVel * 2;
@@ -373,35 +639,46 @@ var Player = (function () {
                 this.pivot.position.x - this.width / 2 < entity.mesh.position.x + width / 2 &&
                 this.pivot.position.y > entity.mesh.position.y &&
                 this.pivot.position.y < entity.mesh.position.y + height) {
-                this.gameState.entityManager.remove(entity);
                 Sound.play(Sound.pickup);
                 ++this.wood;
                 get('woodInfoTab').innerHTML = "Wood: " + this.wood;
+                this.gameState.entityManager.remove(entity);
             }
         }
     };
     Player.prototype.swingAxe = function (deltaTime) {
-        if (this.choppingTime === -1) {
+        if (this.choppingTime === 0) {
             this.animateAxeSwing();
-            this.choppingTime = 22;
+            this.choppingTime = this.axe.swingTime;
             var closest = -1;
             var closestDist = 5;
             for (var t in this.level.trees) {
                 var diff = new THREE.Vector3();
                 diff.subVectors(this.level.trees[t].pivot.position, this.pivot.position);
                 var dist = diff.length();
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    closest = t;
+                if (dist < closestDist && this.level.trees[t].damage > 0) {
+                    if ((this.pivot.position.x < this.level.trees[t].pivot.position.x && Direction.sameishDirection(this.facing, DIRECTION.EAST)) ||
+                        (this.pivot.position.x > this.level.trees[t].pivot.position.x && Direction.sameishDirection(this.facing, DIRECTION.WEST)) ||
+                        (this.pivot.position.y < this.level.trees[t].pivot.position.y && Direction.sameishDirection(this.facing, DIRECTION.NORTH)) ||
+                        (this.pivot.position.y > this.level.trees[t].pivot.position.y && Direction.sameishDirection(this.facing, DIRECTION.SOUTH))) {
+                        closestDist = dist;
+                        closest = t;
+                    }
                 }
             }
             if (closest != -1 && this.level.trees[closest].damage > 0) {
                 var tree = this.level.trees[closest];
                 setTimeout(function () { Sound.playRandom(Sound.hit); }, 100);
-                tree.chop();
+                tree.chop(this.axe);
                 if (tree.damage == 0) {
                     for (var i = 0; i < tree.height; ++i) {
-                        this.gameState.entityManager.add(new TreeSectionEntity(tree.pivot.position.x + (Math.random() * 6 - 3), tree.pivot.position.y + (Math.random() * 6 - 3), 1 + Math.random() * 2));
+                        var radius = (Math.random() * 3 + 1.5);
+                        var angle = Math.random() * Math.PI * 2;
+                        var x = tree.pivot.position.x + Math.cos(angle) * radius;
+                        var y = tree.pivot.position.y + Math.sin(angle) * radius - 3;
+                        x = Math.max(-this.level.width + 2, Math.min(this.level.width - 2, x));
+                        y = Math.max(3.5, Math.min(this.level.height - 2, y));
+                        this.gameState.entityManager.add(new TreeSectionEntity(x, y, 1 + Math.random() * 2));
                     }
                     this.level.trees[closest].pivot.children[0].material = new THREE.MeshPhongMaterial({
                         map: THREE.ImageUtils.loadTexture("res/trunk.png"),
@@ -412,16 +689,22 @@ var Player = (function () {
         }
     };
     Player.prototype.animateAxeSwing = function () {
-        this.pivot.children[0].rotateZ(-0.5);
-        setTimeout(function (w) { w.rotateZ(-0.5); }, 50, this.pivot.children[0]);
-        setTimeout(function (w) { w.rotateZ(0.5); }, 100, this.pivot.children[0]);
-        setTimeout(function (w) { w.rotateZ(0.5); }, 250, this.pivot.children[0]);
+        this.toolMesh.rotateZ(-0.5);
+        setTimeout(function (w) { w.rotateZ(-0.5); }, 50, this.toolMesh);
+        setTimeout(function (w) { w.rotateZ(0.5); }, 100, this.toolMesh);
+        setTimeout(function (w) { w.rotateZ(0.5); }, 250, this.toolMesh);
     };
     Player.MAX_V_WALK = 0.015;
     Player.MAX_V_RUN = 0.025;
     Player.IDLE_ANIM = 0;
     Player.WALK_ANIM = 1;
     Player.RUN_ANIM = 2;
+    Player.IDLE_UPWARDS_ANIM = 3;
+    Player.WALK_UPWARDS_ANIM = 4;
+    Player.RUN_UPWARDS_ANIM = 5;
+    Player.IDLE_DOWNWARDS_ANIM = 6;
+    Player.WALK_DOWNWARDS_ANIM = 7;
+    Player.RUN_DOWNWARDS_ANIM = 8;
     return Player;
 })();
 var Level = (function () {
@@ -436,11 +719,18 @@ var Level = (function () {
         this.mesh = new THREE.Mesh(planeGeometry, planeMaterial);
         this.mesh.position = new THREE.Vector3(0, this.height / 2, 0);
         scene.add(this.mesh);
-        this.trees = new Array(180);
+        this.trees = new Array(650);
         for (var i = 0; i < this.trees.length; ++i) {
-            var pos;
-            pos = new THREE.Vector2(Math.random() * width - width / 2, Math.random() * (height - 5) + 5);
-            this.trees[i] = new Tree(pos.x, pos.y, scene);
+            var x, y;
+            var width = 5;
+            var height = 7 + Math.floor(Math.random() * 3);
+            do {
+                x = Math.random() * this.width - this.width / 2;
+                y = Math.random() * (this.height - 5) + 5;
+                x = Math.max(-this.width / 2 + 3.5, Math.min(this.width / 2 - 3.5, x));
+                y = Math.max(6, Math.min(this.height, y));
+            } while (this.collides(x, y, 0.0, 0.0) != null);
+            this.trees[i] = new Tree(x, y, width, height, scene);
         }
     }
     Level.prototype.collides = function (x, y, width, height) {
@@ -471,12 +761,12 @@ var Level = (function () {
     return Level;
 })();
 var Tree = (function () {
-    function Tree(x, y, scene) {
+    function Tree(x, y, width, height, scene) {
         this.pivot = new THREE.Object3D();
         this.pivot.position = new THREE.Vector3(x, y, 0);
         this.pivot.rotateX(Math.PI / 6.0);
-        this.width = 5;
-        this.height = 7 + Math.floor(Math.random() * 3);
+        this.width = width;
+        this.height = height;
         this.trunkRadius = 1.0;
         this.woodValue = this.height;
         var planeGeometry = new THREE.PlaneGeometry(this.width, this.height);
@@ -491,9 +781,9 @@ var Tree = (function () {
         scene.add(this.pivot);
         this.damage = Math.floor(this.width / 2);
     }
-    Tree.prototype.chop = function () {
+    Tree.prototype.chop = function (axeType) {
         if (this.damage > 0) {
-            --this.damage;
+            this.damage -= axeType.damage;
         }
     };
     return Tree;
@@ -567,11 +857,16 @@ var SpriteAnimator = (function () {
     return SpriteAnimator;
 })();
 var TextureAnimator = (function () {
-    function TextureAnimator(texture, tileCountX, tileCountY, numberOfTiles, msPerFrame) {
+    function TextureAnimator(texture, tileCountX, tileCountY, msPerFrame, numberOfTiles) {
         this.texture = texture;
         this.tileCountX = tileCountX;
         this.tileCountY = tileCountY;
-        this.numberOfTiles = numberOfTiles;
+        if (numberOfTiles) {
+            this.numberOfTiles = numberOfTiles;
+        }
+        else {
+            this.numberOfTiles = tileCountX * tileCountY;
+        }
         this.texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
         this.texture.repeat.set(1 / this.tileCountX, 1 / this.tileCountY);
         this.msPerFrame = msPerFrame;
@@ -597,14 +892,32 @@ var Resource = (function () {
     }
     Resource.loadAll = function () {
         Resource.textureLoader = new THREE.TextureLoader();
-        Resource.textureLoader.load("res/player_idle.png", function (tex) {
+        Resource.textureLoader.load("res/player/player_idle.png", function (tex) {
             Resource.playerIdleTexture = tex;
         });
-        Resource.textureLoader.load("res/player_walking.png", function (tex) {
+        Resource.textureLoader.load("res/player/player_walking.png", function (tex) {
             Resource.playerWalkingTexture = tex;
         });
-        Resource.textureLoader.load("res/player_running.png", function (tex) {
+        Resource.textureLoader.load("res/player/player_running.png", function (tex) {
             Resource.playerRunningTexture = tex;
+        });
+        Resource.textureLoader.load("res/player/player_upwards_idle.png", function (tex) {
+            Resource.playerUpwardsIdleTexture = tex;
+        });
+        Resource.textureLoader.load("res/player/player_upwards_walking.png", function (tex) {
+            Resource.playerUpwardsWalkingTexture = tex;
+        });
+        Resource.textureLoader.load("res/player/player_upwards_running.png", function (tex) {
+            Resource.playerUpwardsRunningTexture = tex;
+        });
+        Resource.textureLoader.load("res/player/player_downwards_idle.png", function (tex) {
+            Resource.playerDownwardsIdleTexture = tex;
+        });
+        Resource.textureLoader.load("res/player/player_downwards_walking.png", function (tex) {
+            Resource.playerDownwardsWalkingTexture = tex;
+        });
+        Resource.textureLoader.load("res/player/player_downwards_running.png", function (tex) {
+            Resource.playerDownwardsRunningTexture = tex;
         });
         Resource.textureLoader.load("res/steel_axe.png", function (tex) {
             Resource.steelAxeTexture = tex;
@@ -625,8 +938,9 @@ var Resource = (function () {
         Resource.textureLoader.load("res/trunk.png", function (tex) {
             Resource.trunkTexture = tex;
         });
-        console.log("All textures loaded!");
+        Resource.ALL_LOADED = true;
     };
+    Resource.ALL_LOADED = false;
     return Resource;
 })();
 var ClickType;
@@ -669,7 +983,6 @@ var Keyboard = (function () {
     Keyboard.onKeyDown = function (event) {
         if (event.altKey)
             return false;
-        Controller.onKeyDown(event.keyCode);
         if (!Keyboard.contains(event.keyCode)) {
             Keyboard.keysDown.push(event.keyCode);
         }
@@ -689,7 +1002,6 @@ var Keyboard = (function () {
         return false;
     };
     Keyboard.onKeyUp = function (event) {
-        Controller.onKeyDown(event.keyCode);
         for (var i in Keyboard.keysDown) {
             if (Keyboard.keysDown[i] === event.keyCode) {
                 Keyboard.keysDown.splice(i, 1);
@@ -705,59 +1017,6 @@ var Keyboard = (function () {
     };
     Keyboard.keysDown = new Array(0);
     return Keyboard;
-})();
-var INPUT;
-(function (INPUT) {
-    INPUT[INPUT["UP"] = 0] = "UP";
-    INPUT[INPUT["DOWN"] = 1] = "DOWN";
-    INPUT[INPUT["LEFT"] = 2] = "LEFT";
-    INPUT[INPUT["RIGHT"] = 3] = "RIGHT";
-    INPUT[INPUT["JUMP"] = 4] = "JUMP";
-})(INPUT || (INPUT = {}));
-var KeyboardInput = (function () {
-    function KeyboardInput(keyCode) {
-        this.down = false;
-        this.pressed = false;
-        this.ticksDown = -1;
-        this.keyCode = keyCode;
-    }
-    KeyboardInput.prototype.onKeyDown = function () {
-        if (this.down == false) {
-            this.pressed = true;
-            this.ticksDown = 1;
-        }
-        else {
-            this.pressed = false;
-            this.ticksDown++;
-        }
-    };
-    KeyboardInput.prototype.onKeyUp = function () {
-        this.down = false;
-        this.pressed = false;
-        this.ticksDown = -1;
-    };
-    return KeyboardInput;
-})();
-var Controller = (function () {
-    function Controller() {
-        Controller.inputs = new Array();
-        Controller.inputs.push(new KeyboardInput(Keyboard.KEYS.W));
-    }
-    Controller.onKeyDown = function (keyCode) {
-        for (var i in Controller.inputs) {
-            if (Controller.inputs[i].keyCode == keyCode) {
-                Controller.inputs[i].onKeyDown();
-            }
-        }
-    };
-    Controller.onKeyUp = function (keyCode) {
-        for (var i in Controller.inputs) {
-            if (Controller.inputs[i].keyCode == keyCode) {
-                Controller.inputs[i].onKeyUp();
-            }
-        }
-    };
-    return Controller;
 })();
 var Sound = (function () {
     function Sound() {
@@ -795,6 +1054,55 @@ var Sound = (function () {
     Sound.volume = 0.5;
     return Sound;
 })();
+var SaveGame = (function () {
+    function SaveGame() {
+    }
+    SaveGame.save = function (player, level) {
+        var data = '|';
+        var serperator = data.charAt(0);
+        data += Main.VERSION + serperator;
+        data += level.width + ',' + level.height + serperator;
+        data += 'trees';
+        for (var t in level.trees) {
+            data += level.trees[t].pivot.position.x + ',' +
+                level.trees[t].pivot.position.y + ',' +
+                level.trees[t].width + ',' +
+                level.trees[t].height + ',' +
+                level.trees[t].damage + ';';
+        }
+        data += serperator;
+        data += player.pivot.position.x + ',' + player.pivot.position.y + serperator;
+        data += player.axe.type + serperator;
+        if (typeof (Storage) === "undefined") {
+            alert("Sorry but your game can't be saved in this browser :(\nYou can copy the following string and load it in later if you want");
+            alert(data);
+        }
+        else {
+            data = encodeURI(data);
+            window.localStorage.setItem(SaveGame.SAVE_STRING, data);
+        }
+    };
+    SaveGame.load = function (scene) {
+        var saveString;
+        if (typeof (Storage) === "undefined") {
+            alert("Sorry but your game can't be loaded in this browser :(\nIf you previously copied the save info you can paste it in the following window:");
+            alert("here");
+        }
+        else {
+            saveString = window.localStorage.getItem(SaveGame.SAVE_STRING);
+            if (saveString === null) {
+                console.error("Couldn't load any saves, none found");
+                return;
+            }
+            saveString = decodeURI(saveString);
+        }
+        var data = saveString.split(saveString.charAt(0));
+        var version = data[0];
+        var level = new Level(Number(data[1]), Number(data[2]), scene);
+    };
+    SaveGame.SAVE_STRING = 'tm495save';
+    return SaveGame;
+})();
 function clickType(event) {
     if (event.which === 3 || event.button === 2)
         return ClickType.RMB;
@@ -805,6 +1113,11 @@ function clickType(event) {
 }
 function enterState(state) {
     Main.sm.enterState(Main.sm.getState(state));
+}
+function buttonClick(button, event, callback) {
+    if (get(button).className === 'button enabled' && clickType(event) === ClickType.LMB) {
+        callback.call(this);
+    }
 }
 window.onkeydown = Keyboard.onKeyDown;
 window.onkeyup = Keyboard.onKeyUp;

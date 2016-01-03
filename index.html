@@ -44,19 +44,24 @@
         font-size: 28px;
         text-shadow: 2px 2px 2px #000;
     }
+    a {
+        cursor: pointer;
+    }
     .button {
         font-size: 24px;
-        width: 120px;
+        width: 150px;
         height: 50px;
         line-height: 50px;
-        background-color: #532;
-        cursor: pointer;
         display: block;
         margin: 10px auto;
+        background-color: #555;
         box-shadow: inset -2px -2px 1px black;
-        /*box-shadow: 5px 5px black;*/
     }
-    .button:hover {
+    .button.enabled {
+        background-color: #532;
+        cursor: pointer;
+    }
+    .button.enabled:hover {
         background-color: #421;
         color: #CCC;
         left: 10px;
@@ -99,18 +104,31 @@
     <img src="res/TM495_title.png" />
 
     <div id="mainMenuState">
-        <div id="playButton" class="button" onclick="if (clickType(event)===ClickType.LMB) enterState('game');">Play</div>
-        <div id="aboutButton" class="button" onclick="if (clickType(event)===ClickType.LMB) enterState('about');">About</div>
+        <div id="resumeButton" class="button" onclick="buttonClick('resumeButton', event, function() { enterState('loading'); })">Resume</div>
+        <div id="playButton" class="button enabled" onclick="buttonClick('playButton', event, function() { enterState('loading'); })">New Game</div>
+        <div id="aboutButton" class="button enabled" onclick="buttonClick('aboutButton', event, function() { enterState('about'); })">About</div>
+    </div>
+
+    <div id="loadingState" style="display: none">
+        Loading...
     </div>
 
     <div id="aboutState" style="display: none">
-        <div id="backButton" class="button" onclick="Main.sm.enterPreviousState();">Back</div>
+        <div id="aboutBackButton" class="button enabled" onclick="buttonClick('aboutBackButton', event, function() { Main.sm.enterPreviousState(); })">Back</div>
         <p>
             TM495 is a lumberjack game made by AJ Weeks in December 2015.
         </p>
         <div>
+            If you have any feeback or questions feel free to contact me on twitter
+            <a href="https://twitter.com/liqwidice">
+                <!-- <img src="res/twitter_wide.png" style="cursor: pointer"> -->
+                @liqwidice
+            </a>
+        </div>
+        <div>
+            <br />Share the game!<br />
             <a href="https://twitter.com/home?status=You%20should%20try%20AJ%20Weeks'%20newest%20game,%20TM495%20over%20at%20ajweeks.github.io/tm495"
-                style="color: rgba(0,0,0,0)"> <!-- Prevent weird line from rendering by making it invisible -->
+            style="color: rgba(0,0,0,0)"> <!-- Prevent weird line from rendering by making it invisible -->
                 <img src="res/twitter.png" style="cursor: pointer">
             </a>
             <a href="https://www.facebook.com/sharer/sharer.php?u=ajweeks.github.io">
@@ -126,7 +144,7 @@
     <audio id="powerup"><source src="res/sounds/powerup.wav"></source></audio>
 
     <div id="gameState" style="display: none">
-        <div id="backButton" class="button" onclick="Main.sm.enterPreviousState();">Back</div>
+        <div id="gameBackButton" class="button enabled" onclick="buttonClick('gameBackButton', event, function() { Main.sm.enterPreviousState(); })">Back</div>
         <div id="gameWindow">
             <!-- TODO(AJ): Find out how to add fullscreen option -->
             <div id="gameContent"></div>
@@ -148,7 +166,7 @@
         </span>
     </div>
     <footer>
-        AJ Weeks 2015
+        AJ Weeks 2016
     </footer>
 </body>
 </html>
