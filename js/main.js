@@ -24,10 +24,10 @@ var Main = (function () {
         var deltaTime = (now - Main.lastDate);
         Main.elapsed += deltaTime;
         Main.lastDate = now;
-        Main.f += deltaTime;
+        Main.elapsedThisFrame += deltaTime;
         ++Main.frames;
-        if (Main.f > 1000) {
-            Main.f -= 1000;
+        if (Main.elapsedThisFrame > 1000) {
+            Main.elapsedThisFrame -= 1000;
             Main.fps = Main.frames;
             Main.frames = 0;
         }
@@ -39,9 +39,9 @@ var Main = (function () {
     Main.lastDate = 0.0;
     Main.frames = 0;
     Main.fps = 0;
-    Main.f = 0;
+    Main.elapsedThisFrame = 0;
     return Main;
-})();
+}());
 var Renderer = (function () {
     function Renderer() {
         this.previousTime = 0.0;
@@ -66,7 +66,7 @@ var Renderer = (function () {
         this.previousTime = now;
     };
     return Renderer;
-})();
+}());
 var StateManager = (function () {
     function StateManager() {
         this.states = new Array(1);
@@ -108,7 +108,7 @@ var StateManager = (function () {
         }
     };
     return StateManager;
-})();
+}());
 var STATE_TYPE;
 (function (STATE_TYPE) {
     STATE_TYPE[STATE_TYPE["MAINMENU"] = 0] = "MAINMENU";
@@ -128,7 +128,7 @@ var BasicState = (function () {
     BasicState.prototype.restore = function () { };
     BasicState.prototype.destroy = function () { };
     return BasicState;
-})();
+}());
 var MainMenuState = (function (_super) {
     __extends(MainMenuState, _super);
     function MainMenuState(sm) {
@@ -145,7 +145,7 @@ var MainMenuState = (function (_super) {
         get('mainMenuState').style.display = "none";
     };
     return MainMenuState;
-})(BasicState);
+}(BasicState));
 var AboutState = (function (_super) {
     __extends(AboutState, _super);
     function AboutState(sm) {
@@ -162,7 +162,7 @@ var AboutState = (function (_super) {
         get('aboutState').style.display = "none";
     };
     return AboutState;
-})(BasicState);
+}(BasicState));
 var LoadingState = (function (_super) {
     __extends(LoadingState, _super);
     function LoadingState(sm) {
@@ -184,7 +184,7 @@ var LoadingState = (function (_super) {
         get('loadingState').style.display = "none";
     };
     return LoadingState;
-})(BasicState);
+}(BasicState));
 var GameState = (function (_super) {
     __extends(GameState, _super);
     function GameState(sm) {
@@ -227,7 +227,7 @@ var GameState = (function (_super) {
         Main.renderer.render(this.scene);
     };
     return GameState;
-})(BasicState);
+}(BasicState));
 var Axe = (function () {
     function Axe(type) {
         this.type = type;
@@ -247,7 +247,7 @@ var Axe = (function () {
         }
     }
     return Axe;
-})();
+}());
 var AXE;
 (function (AXE) {
     AXE[AXE["STEEL"] = 0] = "STEEL";
@@ -271,116 +271,84 @@ var Direction = (function () {
         switch (d) {
             case DIRECTION.NORTH:
                 return DIRECTION.NORTHWEST;
-                break;
             case DIRECTION.NORTHEAST:
                 return DIRECTION.NORTH;
-                break;
             case DIRECTION.EAST:
                 return DIRECTION.NORTHEAST;
-                break;
             case DIRECTION.SOUTHEAST:
                 return DIRECTION.EAST;
-                break;
             case DIRECTION.SOUTH:
                 return DIRECTION.SOUTHEAST;
-                break;
             case DIRECTION.SOUTHWEST:
                 return DIRECTION.SOUTH;
-                break;
             case DIRECTION.WEST:
                 return DIRECTION.SOUTHWEST;
-                break;
             case DIRECTION.NORTHWEST:
                 return DIRECTION.WEST;
-                break;
         }
     };
     Direction.clockwise = function (d) {
         switch (d) {
             case DIRECTION.NORTH:
                 return DIRECTION.NORTHEAST;
-                break;
             case DIRECTION.NORTHEAST:
                 return DIRECTION.EAST;
-                break;
             case DIRECTION.EAST:
                 return DIRECTION.SOUTHEAST;
-                break;
             case DIRECTION.SOUTHEAST:
                 return DIRECTION.SOUTH;
-                break;
             case DIRECTION.SOUTH:
                 return DIRECTION.SOUTHWEST;
-                break;
             case DIRECTION.SOUTHWEST:
                 return DIRECTION.WEST;
-                break;
             case DIRECTION.WEST:
                 return DIRECTION.NORTHWEST;
-                break;
             case DIRECTION.NORTHWEST:
                 return DIRECTION.NORTH;
-                break;
         }
     };
     Direction.opposite = function (d) {
         switch (d) {
             case DIRECTION.NORTH:
                 return DIRECTION.SOUTH;
-                break;
             case DIRECTION.NORTHEAST:
                 return DIRECTION.SOUTHWEST;
-                break;
             case DIRECTION.EAST:
                 return DIRECTION.WEST;
-                break;
             case DIRECTION.SOUTHEAST:
                 return DIRECTION.NORTHWEST;
-                break;
             case DIRECTION.SOUTH:
                 return DIRECTION.NORTH;
-                break;
             case DIRECTION.SOUTHWEST:
                 return DIRECTION.NORTHEAST;
-                break;
             case DIRECTION.WEST:
                 return DIRECTION.EAST;
-                break;
             case DIRECTION.NORTHWEST:
                 return DIRECTION.SOUTHEAST;
-                break;
         }
     };
     Direction.sameishDirection = function (d, dir) {
         switch (dir) {
             case DIRECTION.NORTH:
                 return d === DIRECTION.NORTHWEST || d === DIRECTION.NORTH || d === DIRECTION.NORTHEAST;
-                break;
             case DIRECTION.NORTHEAST:
                 return d === DIRECTION.NORTH || d === DIRECTION.NORTHEAST || d === DIRECTION.EAST;
-                break;
             case DIRECTION.EAST:
                 return d === DIRECTION.NORTHEAST || d === DIRECTION.EAST || d === DIRECTION.SOUTHEAST;
-                break;
             case DIRECTION.SOUTHEAST:
                 return d === DIRECTION.EAST || d === DIRECTION.SOUTHEAST || d === DIRECTION.SOUTH;
-                break;
             case DIRECTION.SOUTH:
                 return d === DIRECTION.SOUTHEAST || d === DIRECTION.SOUTH || d === DIRECTION.SOUTHWEST;
-                break;
             case DIRECTION.SOUTHWEST:
                 return d === DIRECTION.SOUTH || d === DIRECTION.SOUTHWEST || d === DIRECTION.WEST;
-                break;
             case DIRECTION.WEST:
                 return d === DIRECTION.SOUTHWEST || d === DIRECTION.WEST || d === DIRECTION.NORTHWEST;
-                break;
             case DIRECTION.NORTHWEST:
                 return d === DIRECTION.WEST || d === DIRECTION.NORTHWEST || d === DIRECTION.NORTH;
-                break;
         }
     };
     return Direction;
-})();
+}());
 var Player = (function () {
     function Player(level, scene, gameState) {
         this.facing = DIRECTION.EAST;
@@ -662,13 +630,13 @@ var Player = (function () {
                         (this.pivot.position.y < this.level.trees[t].pivot.position.y && Direction.sameishDirection(this.facing, DIRECTION.NORTH)) ||
                         (this.pivot.position.y > this.level.trees[t].pivot.position.y && Direction.sameishDirection(this.facing, DIRECTION.SOUTH))) {
                         closestDist = dist;
-                        closest = t;
+                        closest = parseInt(t);
                     }
                 }
             }
             if (closest != -1 && this.level.trees[closest].damage > 0) {
                 var tree = this.level.trees[closest];
-                setTimeout(function () { Sound.playRandom(Sound.hit); }, 100);
+                setTimeout(function () { Sound.playRandom(Sound.chops); }, 100);
                 tree.chop(this.axe);
                 if (tree.damage == 0) {
                     for (var i = 0; i < tree.height; ++i) {
@@ -706,7 +674,7 @@ var Player = (function () {
     Player.WALK_DOWNWARDS_ANIM = 7;
     Player.RUN_DOWNWARDS_ANIM = 8;
     return Player;
-})();
+}());
 var Level = (function () {
     function Level(width, height, scene) {
         this.width = width;
@@ -732,6 +700,7 @@ var Level = (function () {
             } while (this.collides(x, y, 0.0, 0.0) != null);
             this.trees[i] = new Tree(x, y, width, height, scene);
         }
+        this.shop = new Shop(scene);
     }
     Level.prototype.collides = function (x, y, width, height) {
         for (var t in this.trees) {
@@ -759,7 +728,7 @@ var Level = (function () {
         return false;
     };
     return Level;
-})();
+}());
 var Tree = (function () {
     function Tree(x, y, width, height, scene) {
         this.pivot = new THREE.Object3D();
@@ -787,7 +756,22 @@ var Tree = (function () {
         }
     };
     return Tree;
-})();
+}());
+var Shop = (function () {
+    function Shop(scene) {
+        this.width = 8;
+        this.height = 6;
+        var material = new THREE.MeshBasicMaterial({ map: Resource.shopTexture, transparent: false });
+        var geometry = new THREE.PlaneGeometry(this.width, this.height);
+        this.mesh = new THREE.Mesh(geometry, material);
+        this.mesh.position.x = -9;
+        this.mesh.position.y = 14;
+        this.mesh.position.z = 2;
+        this.mesh.rotateX(Math.PI / 6.0);
+        scene.add(this.mesh);
+    }
+    return Shop;
+}());
 var Entity = (function () {
     function Entity(x, y, startingZ, width, height, material, life, bobDistance) {
         var geometry = new THREE.PlaneGeometry(width, height);
@@ -805,7 +789,7 @@ var Entity = (function () {
         --this.life;
     };
     return Entity;
-})();
+}());
 var TreeSectionEntity = (function (_super) {
     __extends(TreeSectionEntity, _super);
     function TreeSectionEntity(x, y, startingZ) {
@@ -814,7 +798,7 @@ var TreeSectionEntity = (function (_super) {
         _super.call(this, x, y, startingZ, 2, 2, material, life, Math.random() * 5 + 2);
     }
     return TreeSectionEntity;
-})(Entity);
+}(Entity));
 var EntityManager = (function () {
     function EntityManager(scene) {
         this.scene = scene;
@@ -834,12 +818,12 @@ var EntityManager = (function () {
             this.entities[e].update(deltaTime);
             if (this.entities[e].life <= 0) {
                 this.scene.remove(this.entities[e].mesh);
-                this.entities.splice(e, 1);
+                this.entities.splice(parseInt(e), 1);
             }
         }
     };
     return EntityManager;
-})();
+}());
 var SpriteAnimator = (function () {
     function SpriteAnimator(textureAnimators, material, currentAnimationIndex) {
         if (currentAnimationIndex === void 0) { currentAnimationIndex = 0; }
@@ -855,7 +839,7 @@ var SpriteAnimator = (function () {
         this.material.map = this.textureAnimators[this.currentAnimationIndex].texture;
     };
     return SpriteAnimator;
-})();
+}());
 var TextureAnimator = (function () {
     function TextureAnimator(texture, tileCountX, tileCountY, msPerFrame, numberOfTiles) {
         this.texture = texture;
@@ -886,7 +870,7 @@ var TextureAnimator = (function () {
         }
     };
     return TextureAnimator;
-})();
+}());
 var Resource = (function () {
     function Resource() {
     }
@@ -919,6 +903,9 @@ var Resource = (function () {
         Resource.textureLoader.load("res/player/player_downwards_running.png", function (tex) {
             Resource.playerDownwardsRunningTexture = tex;
         });
+        Resource.textureLoader.load("res/shop.png", function (tex) {
+            Resource.shopTexture = tex;
+        });
         Resource.textureLoader.load("res/steel_axe.png", function (tex) {
             Resource.steelAxeTexture = tex;
         });
@@ -942,7 +929,7 @@ var Resource = (function () {
     };
     Resource.ALL_LOADED = false;
     return Resource;
-})();
+}());
 var ClickType;
 (function (ClickType) {
     ClickType[ClickType["LMB"] = 0] = "LMB";
@@ -976,7 +963,7 @@ var Mouse = (function () {
     Mouse.mdown = false;
     Mouse.rdown = false;
     return Mouse;
-})();
+}());
 var Keyboard = (function () {
     function Keyboard() {
     }
@@ -1004,7 +991,7 @@ var Keyboard = (function () {
     Keyboard.onKeyUp = function (event) {
         for (var i in Keyboard.keysDown) {
             if (Keyboard.keysDown[i] === event.keyCode) {
-                Keyboard.keysDown.splice(i, 1);
+                Keyboard.keysDown.splice(parseInt(i), 1);
             }
         }
     };
@@ -1017,24 +1004,25 @@ var Keyboard = (function () {
     };
     Keyboard.keysDown = new Array(0);
     return Keyboard;
-})();
+}());
 var Sound = (function () {
     function Sound() {
     }
     Sound.init = function () {
-        Sound.hit2 = get('hit2');
-        Sound.hit3 = get('hit3');
-        Sound.hit4 = get('hit4');
-        Sound.hit = new Array();
-        Sound.hit.push(Sound.hit2);
-        Sound.hit.push(Sound.hit3);
-        Sound.hit.push(Sound.hit4);
+        Sound.chop1 = get('chop1');
+        Sound.chop2 = get('chop2');
+        Sound.chop3 = get('chop3');
+        Sound.chops = new Array();
+        Sound.chops.push(Sound.chop1);
+        Sound.chops.push(Sound.chop2);
+        Sound.chops.push(Sound.chop3);
         Sound.pickup = get('pickup');
         Sound.powerup = get('powerup');
         Sound.volumeSlider = get('volumeSlider');
     };
     Sound.changeVolume = function () {
         Sound.volume = Number(Sound.volumeSlider.value) / 100;
+        Sound.play(Sound.pickup);
     };
     Sound.toggleMute = function () {
         Sound.muted = !Sound.muted;
@@ -1053,7 +1041,7 @@ var Sound = (function () {
     Sound.muted = false;
     Sound.volume = 0.5;
     return Sound;
-})();
+}());
 var SaveGame = (function () {
     function SaveGame() {
     }
@@ -1102,7 +1090,7 @@ var SaveGame = (function () {
     };
     SaveGame.SAVE_STRING = 'tm495save';
     return SaveGame;
-})();
+}());
 function clickType(event) {
     if (event.which === 3 || event.button === 2)
         return ClickType.RMB;
@@ -1115,7 +1103,7 @@ function enterState(state) {
     Main.sm.enterState(Main.sm.getState(state));
 }
 function buttonClick(button, event, callback) {
-    if (get(button).className === 'button enabled' && clickType(event) === ClickType.LMB) {
+    if (get(button).className.indexOf('enabled') > -1 && clickType(event) === ClickType.LMB) {
         callback.call(this);
     }
 }

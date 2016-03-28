@@ -1,9 +1,30 @@
 
+/**
+    TM495 (it might be a temporary name, we'll see)
+    Read ideas.txt if you want to know more about the game!
+
+    MOATL (mother of all todo lists):
+
+    -[ ] Convert everything to 3D!!!!
+    -[ ] Prevent back button from leaving the page?
+      - Not entirely prevent perhaps, but *at least* warn the user
+    -[ ] Add saves (localstorage? cookies?)
+    -[ ] Reimpliment the way collisions are handled
+      - Using a system which collects all collidables?
+    -[ ] Check/fix cross browser support
+    -[ ] Add store where the player can upgrade their things (and themselves!)
+    -[x] Add more (better) chopping sound effects
+    -[ ] Add a tree falling sound?
+    -[ ] Fix right clicking outside the canvas?
+    -[ ] Add controller support?
+
+ */
+
 function get(what: string): HTMLElement {
     return document.getElementById(what);
 }
 
-// TODO(AJ): see if we can make Main not so static, that's probably a bad thing, right?
+// TODO(AJ): see if we can make Main inot so static, that's probably a bad thing, right?
 class Main {
 
     static VERSION = "0.018";
@@ -35,7 +56,7 @@ class Main {
 
     static frames = 0;
     static fps = 0;
-    static f = 0;
+    static elapsedThisFrame = 0;
 
     static loop(): void {
         requestAnimationFrame(Main.loop);
@@ -45,10 +66,10 @@ class Main {
         Main.elapsed += deltaTime;
         Main.lastDate = now;
 
-        Main.f += deltaTime;
+        Main.elapsedThisFrame += deltaTime;
         ++Main.frames;
-        if (Main.f > 1000) {
-            Main.f -= 1000;
+        if (Main.elapsedThisFrame > 1000) {
+            Main.elapsedThisFrame -= 1000;
             Main.fps = Main.frames;
             Main.frames = 0;
         }
@@ -343,28 +364,20 @@ class Direction {
         switch (d) {
         case DIRECTION.NORTH:
             return DIRECTION.NORTHWEST;
-            break;
         case DIRECTION.NORTHEAST:
             return DIRECTION.NORTH;
-            break;
         case DIRECTION.EAST:
             return DIRECTION.NORTHEAST;
-            break;
         case DIRECTION.SOUTHEAST:
             return DIRECTION.EAST;
-            break;
         case DIRECTION.SOUTH:
             return DIRECTION.SOUTHEAST;
-            break;
         case DIRECTION.SOUTHWEST:
             return DIRECTION.SOUTH;
-            break;
         case DIRECTION.WEST:
             return DIRECTION.SOUTHWEST;
-            break;
         case DIRECTION.NORTHWEST:
             return DIRECTION.WEST;
-            break;
         }
     }
 
@@ -372,28 +385,20 @@ class Direction {
         switch (d) {
         case DIRECTION.NORTH:
             return DIRECTION.NORTHEAST;
-            break;
         case DIRECTION.NORTHEAST:
             return DIRECTION.EAST;
-            break;
         case DIRECTION.EAST:
             return DIRECTION.SOUTHEAST;
-            break;
         case DIRECTION.SOUTHEAST:
             return DIRECTION.SOUTH;
-            break;
         case DIRECTION.SOUTH:
             return DIRECTION.SOUTHWEST;
-            break;
         case DIRECTION.SOUTHWEST:
             return DIRECTION.WEST;
-            break;
         case DIRECTION.WEST:
             return DIRECTION.NORTHWEST;
-            break;
         case DIRECTION.NORTHWEST:
             return DIRECTION.NORTH;
-            break;
         }
     }
 
@@ -401,28 +406,20 @@ class Direction {
         switch (d) {
         case DIRECTION.NORTH:
             return DIRECTION.SOUTH;
-            break;
         case DIRECTION.NORTHEAST:
             return DIRECTION.SOUTHWEST;
-            break;
         case DIRECTION.EAST:
             return DIRECTION.WEST;
-            break;
         case DIRECTION.SOUTHEAST:
             return DIRECTION.NORTHWEST;
-            break;
         case DIRECTION.SOUTH:
             return DIRECTION.NORTH;
-            break;
         case DIRECTION.SOUTHWEST:
             return DIRECTION.NORTHEAST;
-            break;
         case DIRECTION.WEST:
             return DIRECTION.EAST;
-            break;
         case DIRECTION.NORTHWEST:
             return DIRECTION.SOUTHEAST;
-            break;
         }
     }
 
@@ -431,28 +428,20 @@ class Direction {
         switch (dir) {
         case DIRECTION.NORTH:
             return d === DIRECTION.NORTHWEST || d === DIRECTION.NORTH || d === DIRECTION.NORTHEAST;
-            break;
         case DIRECTION.NORTHEAST:
             return d === DIRECTION.NORTH || d === DIRECTION.NORTHEAST || d === DIRECTION.EAST;
-            break;
         case DIRECTION.EAST:
             return d === DIRECTION.NORTHEAST || d === DIRECTION.EAST || d === DIRECTION.SOUTHEAST;
-            break;
         case DIRECTION.SOUTHEAST:
             return d === DIRECTION.EAST || d === DIRECTION.SOUTHEAST || d === DIRECTION.SOUTH;
-            break;
         case DIRECTION.SOUTH:
             return d === DIRECTION.SOUTHEAST || d === DIRECTION.SOUTH || d === DIRECTION.SOUTHWEST;
-            break;
         case DIRECTION.SOUTHWEST:
             return d === DIRECTION.SOUTH || d === DIRECTION.SOUTHWEST || d === DIRECTION.WEST;
-            break;
         case DIRECTION.WEST:
             return d === DIRECTION.SOUTHWEST || d === DIRECTION.WEST || d === DIRECTION.NORTHWEST;
-            break;
         case DIRECTION.NORTHWEST:
             return d === DIRECTION.WEST || d === DIRECTION.NORTHWEST || d === DIRECTION.NORTH;
-            break;
         }
     }
 }
@@ -807,13 +796,13 @@ class Player {
                         (this.pivot.position.y < this.level.trees[t].pivot.position.y && Direction.sameishDirection(this.facing, DIRECTION.NORTH)) ||
                         (this.pivot.position.y > this.level.trees[t].pivot.position.y && Direction.sameishDirection(this.facing, DIRECTION.SOUTH))) {
                             closestDist = dist;
-                            closest = t;
+                            closest = parseInt(t);
                     }
                 }
             }
             if (closest != -1 && this.level.trees[closest].damage > 0) {
                 var tree = this.level.trees[closest];
-                setTimeout(function() { Sound.playRandom(Sound.hit); }, 100);
+                setTimeout(function() { Sound.playRandom(Sound.chops); }, 100);
                 tree.chop(this.axe);
 
                 // TODO(AJ): Ensure that entities aren't generated outside the level's bounds
@@ -861,6 +850,7 @@ class Level {
     width: number;
     height: number;
     mesh: THREE.Mesh;
+    shop: Shop;
 
     constructor(width: number, height: number, scene: THREE.Scene) {
         this.width = width;
@@ -889,6 +879,8 @@ class Level {
 
             this.trees[i] = new Tree(x, y, width, height, scene);
         }
+
+        this.shop = new Shop(scene);
     }
 
     collides(x: number, y: number, width: number, height: number): Tree {
@@ -966,6 +958,26 @@ class Tree {
     }
 }
 
+class Shop {
+    mesh: THREE.Mesh;
+    width: number;
+    height: number;
+
+    constructor(scene: THREE.Scene) {
+        this.width = 8;
+        this.height = 6;
+
+        var material = new THREE.MeshBasicMaterial( { map: Resource.shopTexture, transparent: false } );
+        var geometry = new THREE.PlaneGeometry(this.width, this.height);
+        this.mesh = new THREE.Mesh(geometry, material);
+        this.mesh.position.x = -9;
+        this.mesh.position.y = 14;
+        this.mesh.position.z = 2; // TODO(AJ): find out how to place things at the right height
+        this.mesh.rotateX(Math.PI / 6.0);
+        scene.add(this.mesh);
+    }
+}
+
 class Entity {
     mesh: THREE.Mesh;
     life: number;
@@ -1025,7 +1037,7 @@ class EntityManager {
             this.entities[e].update(deltaTime);
             if (this.entities[e].life <= 0) {
                 this.scene.remove(this.entities[e].mesh);
-                this.entities.splice(e, 1);
+                this.entities.splice(parseInt(e), 1);
             }
         }
     }
@@ -1056,7 +1068,7 @@ class SpriteAnimator {
         this.material.map = this.textureAnimators[this.currentAnimationIndex].texture;
     }
 
-}   
+}
 
 /* Slightly modified version of Lee Stemkoski's texture animator
    http://stemkoski.github.io/Three.js/Texture-Animation.html */
@@ -1131,6 +1143,7 @@ class Resource {
     static playerDownwardsWalkingTexture: THREE.Texture;
     static playerDownwardsRunningTexture: THREE.Texture;
 
+    static shopTexture: THREE.Texture;
 
     static steelAxeTexture: THREE.Texture;
     static goldAxeTexture: THREE.Texture;
@@ -1184,6 +1197,10 @@ class Resource {
             Resource.playerDownwardsRunningTexture = tex;
         });
 
+        // Shop
+        Resource.textureLoader.load("res/shop.png", function(tex) {
+            Resource.shopTexture = tex;
+        });
 
         // Axes
         Resource.textureLoader.load("res/steel_axe.png", function(tex) {
@@ -1215,6 +1232,405 @@ class Resource {
         Resource.ALL_LOADED = true;
     }
 }
+
+// class OBJLoader {
+//     manager: THREE.LoadingManager;
+//     path: String;
+//
+//     constructor() {
+//         this.manager = THREE.DefaultLoadingManager;
+//
+//         this.manager = ( manager !== undefined ) ? manager : THREE.DefaultLoadingManager;
+//
+//         this.materials = null;
+//     }
+//
+// 	load( url, onLoad, onProgress, onError ) {
+//
+// 		var scope = this;
+//
+// 		var loader = new THREE.XHRLoader( scope.manager );
+// 		loader.setPath( this.path );
+// 		loader.load( url, function ( text ) {
+//
+// 			onLoad( scope.parse( text ) );
+//
+// 		}, onProgress, onError );
+//     }
+//
+// 	setPath( value ) {
+//
+// 		this.path = value;
+//
+// 	}
+//
+// 	setMaterials( materials ) {
+//
+// 		this.materials = materials;
+//
+// 	}
+//
+// 	parse( text ) {
+//
+// 		console.time( 'OBJLoader' );
+//
+// 		var objects = [];
+// 		var object;
+// 		var foundObjects = false;
+// 		var vertices = [];
+// 		var normals = [];
+// 		var uvs = [];
+//
+// 		function addObject( name ) {
+//
+// 			var geometry = {
+// 				vertices: [],
+// 				normals: [],
+// 				uvs: []
+// 			};
+//
+// 			var material = {
+// 				name: '',
+// 				smooth: true
+// 			};
+//
+// 			object = {
+// 				name: name,
+// 				geometry: geometry,
+// 				material: material
+// 			};
+//
+// 			objects.push( object );
+//
+// 		}
+//
+// 		function parseVertexIndex( value ) {
+//
+// 			var index = parseInt( value );
+//
+// 			return ( index >= 0 ? index - 1 : index + vertices.length / 3 ) * 3;
+//
+// 		}
+//
+// 		function parseNormalIndex( value ) {
+//
+// 			var index = parseInt( value );
+//
+// 			return ( index >= 0 ? index - 1 : index + normals.length / 3 ) * 3;
+//
+// 		}
+//
+// 		function parseUVIndex( value ) {
+//
+// 			var index = parseInt( value );
+//
+// 			return ( index >= 0 ? index - 1 : index + uvs.length / 2 ) * 2;
+//
+// 		}
+//
+// 		function addVertex( a, b, c ) {
+//
+// 			object.geometry.vertices.push(
+// 				vertices[ a ], vertices[ a + 1 ], vertices[ a + 2 ],
+// 				vertices[ b ], vertices[ b + 1 ], vertices[ b + 2 ],
+// 				vertices[ c ], vertices[ c + 1 ], vertices[ c + 2 ]
+// 			);
+//
+// 		}
+//
+// 		function addNormal( a, b, c ) {
+//
+// 			object.geometry.normals.push(
+// 				normals[ a ], normals[ a + 1 ], normals[ a + 2 ],
+// 				normals[ b ], normals[ b + 1 ], normals[ b + 2 ],
+// 				normals[ c ], normals[ c + 1 ], normals[ c + 2 ]
+// 			);
+//
+// 		}
+//
+// 		function addUV( a, b, c ) {
+//
+// 			object.geometry.uvs.push(
+// 				uvs[ a ], uvs[ a + 1 ],
+// 				uvs[ b ], uvs[ b + 1 ],
+// 				uvs[ c ], uvs[ c + 1 ]
+// 			);
+//
+// 		}
+//
+// 		function addFace( a, b, c, d,  ua, ub, uc, ud, na, nb, nc, nd ) {
+//
+// 			var ia = parseVertexIndex( a );
+// 			var ib = parseVertexIndex( b );
+// 			var ic = parseVertexIndex( c );
+// 			var id;
+//
+// 			if ( d === undefined ) {
+//
+// 				addVertex( ia, ib, ic );
+//
+// 			} else {
+//
+// 				id = parseVertexIndex( d );
+//
+// 				addVertex( ia, ib, id );
+// 				addVertex( ib, ic, id );
+//
+// 			}
+//
+// 			if ( ua !== undefined ) {
+//
+// 				ia = parseUVIndex( ua );
+// 				ib = parseUVIndex( ub );
+// 				ic = parseUVIndex( uc );
+//
+// 				if ( d === undefined ) {
+//
+// 					addUV( ia, ib, ic );
+//
+// 				} else {
+//
+// 					id = parseUVIndex( ud );
+//
+// 					addUV( ia, ib, id );
+// 					addUV( ib, ic, id );
+//
+// 				}
+//
+// 			}
+//
+// 			if ( na !== undefined ) {
+//
+// 				ia = parseNormalIndex( na );
+// 				ib = parseNormalIndex( nb );
+// 				ic = parseNormalIndex( nc );
+//
+// 				if ( d === undefined ) {
+//
+// 					addNormal( ia, ib, ic );
+//
+// 				} else {
+//
+// 					id = parseNormalIndex( nd );
+//
+// 					addNormal( ia, ib, id );
+// 					addNormal( ib, ic, id );
+//
+// 				}
+//
+// 			}
+//
+// 		}
+//
+// 		addObject( '' );
+//
+// 		// v float float float
+// 		var vertex_pattern = /^v\s+([\d|\.|\+|\-|e|E]+)\s+([\d|\.|\+|\-|e|E]+)\s+([\d|\.|\+|\-|e|E]+)/;
+//
+// 		// vn float float float
+// 		var normal_pattern = /^vn\s+([\d|\.|\+|\-|e|E]+)\s+([\d|\.|\+|\-|e|E]+)\s+([\d|\.|\+|\-|e|E]+)/;
+//
+// 		// vt float float
+// 		var uv_pattern = /^vt\s+([\d|\.|\+|\-|e|E]+)\s+([\d|\.|\+|\-|e|E]+)/;
+//
+// 		// f vertex vertex vertex ...
+// 		var face_pattern1 = /^f\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)(?:\s+(-?\d+))?/;
+//
+// 		// f vertex/uv vertex/uv vertex/uv ...
+// 		var face_pattern2 = /^f\s+((-?\d+)\/(-?\d+))\s+((-?\d+)\/(-?\d+))\s+((-?\d+)\/(-?\d+))(?:\s+((-?\d+)\/(-?\d+)))?/;
+//
+// 		// f vertex/uv/normal vertex/uv/normal vertex/uv/normal ...
+// 		var face_pattern3 = /^f\s+((-?\d+)\/(-?\d+)\/(-?\d+))\s+((-?\d+)\/(-?\d+)\/(-?\d+))\s+((-?\d+)\/(-?\d+)\/(-?\d+))(?:\s+((-?\d+)\/(-?\d+)\/(-?\d+)))?/;
+//
+// 		// f vertex//normal vertex//normal vertex//normal ...
+// 		var face_pattern4 = /^f\s+((-?\d+)\/\/(-?\d+))\s+((-?\d+)\/\/(-?\d+))\s+((-?\d+)\/\/(-?\d+))(?:\s+((-?\d+)\/\/(-?\d+)))?/;
+//
+// 		var object_pattern = /^[og]\s+(.+)/;
+//
+// 		var smoothing_pattern = /^s\s+(\d+|on|off)/;
+//
+// 		//
+//
+// 		var lines = text.split( '\n' );
+//
+// 		for ( var i = 0; i < lines.length; i ++ ) {
+//
+// 			var line = lines[ i ];
+// 			line = line.trim();
+//
+// 			var result;
+//
+// 			if ( line.length === 0 || line.charAt( 0 ) === '#' ) {
+//
+// 				continue;
+//
+// 			} else if ( ( result = vertex_pattern.exec( line ) ) !== null ) {
+//
+// 				// ["v 1.0 2.0 3.0", "1.0", "2.0", "3.0"]
+//
+// 				vertices.push(
+// 					parseFloat( result[ 1 ] ),
+// 					parseFloat( result[ 2 ] ),
+// 					parseFloat( result[ 3 ] )
+// 				);
+//
+// 			} else if ( ( result = normal_pattern.exec( line ) ) !== null ) {
+//
+// 				// ["vn 1.0 2.0 3.0", "1.0", "2.0", "3.0"]
+//
+// 				normals.push(
+// 					parseFloat( result[ 1 ] ),
+// 					parseFloat( result[ 2 ] ),
+// 					parseFloat( result[ 3 ] )
+// 				);
+//
+// 			} else if ( ( result = uv_pattern.exec( line ) ) !== null ) {
+//
+// 				// ["vt 0.1 0.2", "0.1", "0.2"]
+//
+// 				uvs.push(
+// 					parseFloat( result[ 1 ] ),
+// 					parseFloat( result[ 2 ] )
+// 				);
+//
+// 			} else if ( ( result = face_pattern1.exec( line ) ) !== null ) {
+//
+// 				// ["f 1 2 3", "1", "2", "3", undefined]
+//
+// 				addFace(
+// 					result[ 1 ], result[ 2 ], result[ 3 ], result[ 4 ]
+// 				);
+//
+// 			} else if ( ( result = face_pattern2.exec( line ) ) !== null ) {
+//
+// 				// ["f 1/1 2/2 3/3", " 1/1", "1", "1", " 2/2", "2", "2", " 3/3", "3", "3", undefined, undefined, undefined]
+//
+// 				addFace(
+// 					result[ 2 ], result[ 5 ], result[ 8 ], result[ 11 ],
+// 					result[ 3 ], result[ 6 ], result[ 9 ], result[ 12 ]
+// 				);
+//
+// 			} else if ( ( result = face_pattern3.exec( line ) ) !== null ) {
+//
+// 				// ["f 1/1/1 2/2/2 3/3/3", " 1/1/1", "1", "1", "1", " 2/2/2", "2", "2", "2", " 3/3/3", "3", "3", "3", undefined, undefined, undefined, undefined]
+//
+// 				addFace(
+// 					result[ 2 ], result[ 6 ], result[ 10 ], result[ 14 ],
+// 					result[ 3 ], result[ 7 ], result[ 11 ], result[ 15 ],
+// 					result[ 4 ], result[ 8 ], result[ 12 ], result[ 16 ]
+// 				);
+//
+// 			} else if ( ( result = face_pattern4.exec( line ) ) !== null ) {
+//
+// 				// ["f 1//1 2//2 3//3", " 1//1", "1", "1", " 2//2", "2", "2", " 3//3", "3", "3", undefined, undefined, undefined]
+//
+// 				addFace(
+// 					result[ 2 ], result[ 5 ], result[ 8 ], result[ 11 ],
+// 					undefined, undefined, undefined, undefined,
+// 					result[ 3 ], result[ 6 ], result[ 9 ], result[ 12 ]
+// 				);
+//
+// 			} else if ( ( result = object_pattern.exec( line ) ) !== null ) {
+//
+// 				// o object_name
+// 				// or
+// 				// g group_name
+//
+// 				var name = result[ 1 ].trim();
+//
+// 				if ( foundObjects === false ) {
+//
+// 					foundObjects = true;
+// 					object.name = name;
+//
+// 				} else {
+//
+// 					addObject( name );
+//
+// 				}
+//
+// 			} else if ( /^usemtl /.test( line ) ) {
+//
+// 				// material
+//
+// 				object.material.name = line.substring( 7 ).trim();
+//
+// 			} else if ( /^mtllib /.test( line ) ) {
+//
+// 				// mtl file
+//
+// 			} else if ( ( result = smoothing_pattern.exec( line ) ) !== null ) {
+//
+// 				// smooth shading
+//
+// 				object.material.smooth = result[ 1 ] === "1" || result[ 1 ] === "on";
+//
+// 			} else {
+//
+// 				throw new Error( "Unexpected line: " + line );
+//
+// 			}
+//
+// 		}
+//
+// 		var container = new THREE.Group();
+//
+// 		for ( var i = 0, l = objects.length; i < l; i ++ ) {
+//
+// 			object = objects[ i ];
+// 			var geometry = object.geometry;
+//
+// 			var buffergeometry = new THREE.BufferGeometry();
+//
+// 			buffergeometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( geometry.vertices ), 3 ) );
+//
+// 			if ( geometry.normals.length > 0 ) {
+//
+// 				buffergeometry.addAttribute( 'normal', new THREE.BufferAttribute( new Float32Array( geometry.normals ), 3 ) );
+//
+// 			} else {
+//
+// 				buffergeometry.computeVertexNormals();
+//
+// 			}
+//
+// 			if ( geometry.uvs.length > 0 ) {
+//
+// 				buffergeometry.addAttribute( 'uv', new THREE.BufferAttribute( new Float32Array( geometry.uvs ), 2 ) );
+//
+// 			}
+//
+// 			var material;
+//
+// 			if ( this.materials !== null ) {
+//
+// 				material = this.materials.create( object.material.name );
+//
+// 			}
+//
+// 			if ( !material ) {
+//
+// 				material = new THREE.MeshPhongMaterial();
+// 				material.name = object.material.name;
+//
+// 			}
+//
+// 			material.shading = object.material.smooth ? THREE.SmoothShading : THREE.FlatShading;
+//
+// 			var mesh = new THREE.Mesh( buffergeometry, material );
+// 			mesh.name = object.name;
+//
+// 			container.add( mesh );
+//
+// 		}
+//
+// 		console.timeEnd( 'OBJLoader' );
+//
+// 		return container;
+//
+// 	}
+//
+// }
 
 enum ClickType {
     LMB, MMB, RMB
@@ -1294,7 +1710,7 @@ class Keyboard {
 
         for (var i in Keyboard.keysDown) {
             if (Keyboard.keysDown[i] === event.keyCode) {
-                Keyboard.keysDown.splice(i, 1);
+                Keyboard.keysDown.splice(parseInt(i), 1);
                 // don't break after the item has been found, in case it's in there more than once
             }
         }
@@ -1303,27 +1719,43 @@ class Keyboard {
 
 class Sound {
 
-    static hit2: HTMLAudioElement;
-    static hit3: HTMLAudioElement;
-    static hit4: HTMLAudioElement;
+    static chop1: HTMLAudioElement;
+    static chop2: HTMLAudioElement;
+    static chop3: HTMLAudioElement;
+
+    static chops: HTMLAudioElement[];
+
+    // static hit2: HTMLAudioElement;
+    // static hit3: HTMLAudioElement;
+    // static hit4: HTMLAudioElement;
+
+    // static hit: HTMLAudioElement[];
+
     static pickup: HTMLAudioElement;
     static powerup: HTMLAudioElement;
-
-    static hit: HTMLAudioElement[];
 
     static muted: boolean = false;
     static volume: number = 0.5;
     static volumeSlider: HTMLInputElement;
 
     static init() {
-        Sound.hit2 = <HTMLAudioElement>get('hit2');
-        Sound.hit3 = <HTMLAudioElement>get('hit3');
-        Sound.hit4 = <HTMLAudioElement>get('hit4');
+        // Sound.hit2 = <HTMLAudioElement>get('hit2');
+        // Sound.hit3 = <HTMLAudioElement>get('hit3');
+        // Sound.hit4 = <HTMLAudioElement>get('hit4');
+        //
+        // Sound.hit = new Array<HTMLAudioElement>();
+        // Sound.hit.push(Sound.hit2);
+        // Sound.hit.push(Sound.hit3);
+        // Sound.hit.push(Sound.hit4);
 
-        Sound.hit = new Array<HTMLAudioElement>();
-        Sound.hit.push(Sound.hit2);
-        Sound.hit.push(Sound.hit3);
-        Sound.hit.push(Sound.hit4);
+        Sound.chop1 = <HTMLAudioElement>get('chop1');
+        Sound.chop2 = <HTMLAudioElement>get('chop2');
+        Sound.chop3 = <HTMLAudioElement>get('chop3');
+
+        Sound.chops = new Array<HTMLAudioElement>();
+        Sound.chops.push(Sound.chop1);
+        Sound.chops.push(Sound.chop2);
+        Sound.chops.push(Sound.chop3);
 
         Sound.pickup = <HTMLAudioElement>get('pickup');
         Sound.powerup = <HTMLAudioElement>get('powerup');
@@ -1333,6 +1765,7 @@ class Sound {
 
     static changeVolume() {
         Sound.volume = Number(Sound.volumeSlider.value) / 100;
+        Sound.play(Sound.pickup);
     }
 
     static toggleMute(): void {
@@ -1427,7 +1860,7 @@ function enterState(state: string): void {
 }
 
 function buttonClick(button: string, event: MouseEvent, callback: () => void) {
-    if (get(button).className === 'button enabled' && clickType(event)===ClickType.LMB) {
+    if (get(button).className.indexOf('enabled') > -1 && clickType(event)===ClickType.LMB) {
         callback.call(this);
     }
 }

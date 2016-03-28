@@ -45,7 +45,10 @@ Trade off: only go for easy trees with lots of wood
    - Large trees are slow, requiring you to completely stop for a few seconds,
      but they drop much more wood
 
-
+_Option 03_
+World exploration game
+Casual, adventure game where you can wander around and explore.
+Townspeople who you can help out along your way? 
 
 
 |/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\|

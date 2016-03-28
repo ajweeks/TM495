@@ -6,8 +6,7 @@
     <meta name="keywords" content="TM495,2D,lumberjack,game,javascript,typescript,webgame,online,free,fun">
     <meta name="description" content="A free online 2D lumberjack game in early Alpha by AJ Weeks">
     <script src="js/main.js"></script>
-    <!-- TODO(AJ): use cdn version of three once I have access to internet again -->
-    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r67/three.min.js"></script> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r67/three.min.js"></script>
     <script src="js/three.min.js"></script>
     <link href='https://fonts.googleapis.com/css?family=Sarala' rel='stylesheet' type='text/css'>
     <link rel="icon" type="image/png" href="favicons/favicon-32x32.png" sizes="32x32">
@@ -71,6 +70,14 @@
         height: 48px;
         box-shadow: inset 2px 2px 1px black;
     }
+    #gameBackButton {
+        height: 30px;
+        line-height: 30px;
+    }
+    #gameBackButton:hover {
+        height: 28px !important;
+    }
+
     #gameCanvas {
         vertical-align: top; /* Removes gap between canvases */
         box-shadow: 0 0 40px rgba(15, 15, 15, 0.3), 0 9px 10px -6px #000;
@@ -84,6 +91,8 @@
         margin-top: 120px;
     }
     #gameplayTabs {
+        height:35px;
+        line-height: 35px;
         width: 720px;
         margin: 0 auto;
     }
@@ -97,6 +106,17 @@
         box-shadow: 2px 2px 1px rgba(1, 1, 1, 0.5), inset -1px -1px 1px rgba(1, 1, 1, 0.5);
         text-shadow: 1px 1px 1px #000;
     }
+    #infoBox {
+        display: block;
+        width: 280px;
+        color: #D2D2D2;
+        margin-left: auto;
+        margin-right: auto;
+        padding: 12px;
+        background-color: #2D1204;
+        border-radius: 19px;
+        box-shadow: 0 0 23px 4px rgba(0, 0, 0, 0.3) inset;
+    }
     </style>
 </head>
 <body>
@@ -104,8 +124,7 @@
     <img src="res/TM495_title.png" />
 
     <div id="mainMenuState">
-        <div id="resumeButton" class="button" onclick="buttonClick('resumeButton', event, function() { enterState('loading'); })">Resume</div>
-        <div id="playButton" class="button enabled" onclick="buttonClick('playButton', event, function() { enterState('loading'); })">New Game</div>
+        <div id="playButton" class="button enabled" onclick="buttonClick('playButton', event, function() { enterState('loading'); })">Play</div>
         <div id="aboutButton" class="button enabled" onclick="buttonClick('aboutButton', event, function() { enterState('about'); })">About</div>
     </div>
 
@@ -114,7 +133,7 @@
     </div>
 
     <div id="aboutState" style="display: none">
-        <div id="aboutBackButton" class="button enabled" onclick="buttonClick('aboutBackButton', event, function() { Main.sm.enterPreviousState(); })">Back</div>
+        <div id="aboutBackButton" class="button enabled backbutton" onclick="buttonClick('aboutBackButton', event, function() { Main.sm.enterPreviousState(); })">Back</div>
         <p>
             TM495 is a lumberjack game made by AJ Weeks in December 2015.
         </p>
@@ -135,16 +154,21 @@
                 <img src="res/facebook.png" style="cursor: pointer">
             </a>
         </div>
+        <div>
+            <p>You can find more of my games at <a href="/games">ajweeks.github.io/games</a></p>
+        </div>
     </div>
 
-    <audio id="hit2"><source src="res/sounds/hit2.wav"></source></audio>
+    <!-- <audio id="hit2"><source src="res/sounds/hit2.wav"></source></audio>
     <audio id="hit3"><source src="res/sounds/hit3.wav"></source></audio>
-    <audio id="hit4"><source src="res/sounds/hit4.wav"></source></audio>
+    <audio id="hit4"><source src="res/sounds/hit4.wav"></source></audio> -->
+    <audio id="chop1"><source src="res/sounds/chop1.wav"></source></audio>
+    <audio id="chop2"><source src="res/sounds/chop2.wav"></source></audio>
+    <audio id="chop3"><source src="res/sounds/chop3.wav"></source></audio>
     <audio id="pickup"><source src="res/sounds/pickup.wav"></source></audio>
     <audio id="powerup"><source src="res/sounds/powerup.wav"></source></audio>
 
     <div id="gameState" style="display: none">
-        <div id="gameBackButton" class="button enabled" onclick="buttonClick('gameBackButton', event, function() { Main.sm.enterPreviousState(); })">Back</div>
         <div id="gameWindow">
             <!-- TODO(AJ): Find out how to add fullscreen option -->
             <div id="gameContent"></div>
@@ -152,19 +176,21 @@
             <div id="woodInfoTab">Wood: 0</div>
             <div id="paperInfoTab">Paper: 0</div>
             <div id="volume" style="display: inline-block">
-                <input id="volumeSlider" type="range" value="75" style="" onchange="Sound.changeVolume()"/>
-                <span style="display: block; font-size: 22px; margin-left: 125px;">volume</span>
+                <span style="margin-right: 7px;">Volume:</span>
+                <input id="volumeSlider" type="range" value="75" style="height: 9px; width: 85px;" onchange="Sound.changeVolume()"/>
             </div>
         </div>
         <br />
-        <span>
+        <div id="infoBox" style="display: block;">
             WASD or arrow keys to move
             <br />
             Space to chop
             <br />
             Shift to sprint
-        </span>
+        </div>
     </div>
+    <br />
+    <div id="gameBackButton" class="button enabled backbutton" onclick="buttonClick('gameBackButton', event, function() { Main.sm.enterPreviousState(); })">Back</div>
     <footer>
         AJ Weeks 2016
     </footer>
